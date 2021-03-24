@@ -29,7 +29,7 @@ except Exception:
             '\t\033[1m\033[3m/.../qgis/python\033[0m\033[0m\n'
             'Either modify the sys.path.append line with this path in'
             'QgisGimpProject.py\nor update your python path')
-        sys.exit()
+        #sys.exit()
 
 
 class QgisGimpProject:
