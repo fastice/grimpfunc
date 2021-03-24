@@ -15,7 +15,10 @@ try:
 except Exception:
     # Try anaconda path
     try:
-        sys.path.append(os.path.expanduser('~/anaconda3/share/qgis/python'))
+        qgisPath = '/'.join(sys.executable.split('/')[0:-2]) + \
+            '/share/qgis/python'
+        print(f'Adding {qgisPath} to sys.path')
+        sys.path.append(qgisPath)
         import qgis.core as qc
         import qgis.gui as qg
     # unsucessful, print some instructions on how to fix
