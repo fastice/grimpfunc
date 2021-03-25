@@ -21,7 +21,9 @@ class NASALogin(param.Parameterized):
     username = param.String()
     password = param.String()
     # Param for enter credentianl button
-    enterCredential = param.Boolean(False)
+    # enterCredential = param.Boolean(False)
+    enterCredential = param.Action(
+        lambda x: x.param.trigger('enterCredential'))
     # Local stash of cookies so we don't always have to ask
     cookie_jar_path = os.path.join(os.path.expanduser('~'),
                                    ".gimp_download_cookiejar.txt")
