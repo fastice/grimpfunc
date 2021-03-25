@@ -28,6 +28,7 @@ class NASALogin(param.Parameterized):
     cookie_jar_path = os.path.join(os.path.expanduser('~'),
                                    ".gimp_download_cookiejar.txt")
     cookie_jar = None
+    status = False
     # For SSL
     context = {}
     first = True
@@ -41,7 +42,7 @@ class NASALogin(param.Parameterized):
         while self.check_cookie() is False and count < 10:
             self.get_new_cookie()
             count += 1
-        return self.loginStatus()
+        self.loginStatus()
 
     def resetCookie(self):
         ''' Remove cooking file - for debugging'''
@@ -172,8 +173,8 @@ class NASALogin(param.Parameterized):
         else:
             msg = '### Status: Not logged in\nEnter credentials'
             style = {'color': 'red'}
-        status = pn.pane.Markdown(msg, style=style)
-        return status
+        # pn.pane.Markdown(msg, style=style)
+        return pn.pane.Markdown(msg, style=style)
 
     def view(self):
         ''' Execute login procedure. First check if logged in. If so, return.
@@ -192,4 +193,4 @@ class NASALogin(param.Parameterized):
              'enterCredential': pn.widgets.Button(name='Enter Credentials')}
         widgets = pn.panel(
             self.param, widgets=widgetParams, name='Earth Data Login')
-        return pn.Row(self.loginInstructions, self.loginStatus, widgets)
+        return pn.Row(self.loginInstructions, widgets, self.loginStatus)
