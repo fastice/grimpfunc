@@ -169,7 +169,7 @@ class NASALogin(param.Parameterized):
         '''Check login status and print an appropriate message '''
         if self.check_cookie_is_logged_in(self.cookie_jar):
             msg = '### Status: Logged in\n####Continue'
-            style = {'color': 'blue', 'fontsize': 4}
+            style = {'color': 'blue'}
         else:
             msg = '### Status: Not logged in\nEnter credentials'
             style = {'color': 'red'}
