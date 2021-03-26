@@ -32,6 +32,7 @@ class NASALogin(param.Parameterized):
     first = True
     cookie_jar_path = None
     cookie_jar = None
+    netrcFile = os.path.expanduser('~/.netrc')
 
     def __init__(self, cookieFile='.gimp_download_cookiejar.txt',
                  cookiePath='~'):
@@ -67,6 +68,8 @@ class NASALogin(param.Parameterized):
         while self.check_cookie() is False and count < 10:
             self.get_new_cookie()
             count += 1
+        if self.check_cookie_is_logged_in(self.cookie_jar):
+            self.updateNetrc()  # Create/update .netrc file
         self.loginStatus()
 
     def resetCookie(self):
@@ -74,7 +77,8 @@ class NASALogin(param.Parameterized):
         if os.path.exists(self.cookie_jar_path):
             os.remove(self.cookie_jar_path)
 
-    def check_cookie(self, file_check='https://urs.earthdata.nasa.gov/profile'):
+    def check_cookie(self,
+                     file_check='https://urs.earthdata.nasa.gov/profile'):
         '''
         Validate cookie before we begin
         Returns
@@ -130,6 +134,7 @@ class NASALogin(param.Parameterized):
             Whether new cookie successful.
         '''
         # Start by prompting user to input their credentials
+        requestPath = 'https://daacdata.apps.nsidc.org/pub/DATASETS/'
         new_username = self.username
         new_password = self.password
         user_pass = base64.b64encode(
@@ -139,7 +144,7 @@ class NASALogin(param.Parameterized):
         self.cookie_jar = MozillaCookieJar()
         opener = build_opener(HTTPCookieProcessor(self.cookie_jar),
                               HTTPHandler(), HTTPSHandler(**self.context))
-        request = Request('https://daacdata.apps.nsidc.org/pub/DATASETS/',
+        request = Request(requestPath,
                           headers={"Authorization": f"Basic {user_pass}"})
         # Watch out cookie rejection!
         try:
@@ -222,7 +227,10 @@ class NASALogin(param.Parameterized):
             (https://urs.earthdata.nasa.gov)
         2. Click the 'Enter Credentials' button, which will not be stored,
             saved or logged anywhere
-        3. Click the 'Next' button to continue
+        3. This program will update your ~/.netrc file with plain text
+        user name and passwd (user r/w only permissions). This represents a
+        minor security risk. If concerned it can be removed later when not
+        using QGIS or other application.
         4. Cookie will be maintained for some period for future downloads
         ''', width=550)
         # Get cookie on first try, but not each time view is called
@@ -231,13 +239,38 @@ class NASALogin(param.Parameterized):
     def loginStatus(self):
         '''Check login status and print an appropriate message '''
         if self.check_cookie_is_logged_in(self.cookie_jar):
-            msg = '### Status: Logged in\n####Continue'
-            style = {'color': 'blue'}
+            if os.path.exists(self.netrcFile):
+                msg = '### Status: Logged in\n####Continue'
+                style = {'color': 'blue'}
+            else:
+                msg = '### Status: Enter password to create .netrc'
+                style = {'color': 'orange'}
         else:
             msg = '### Status: Not logged in\nEnter credentials'
             style = {'color': 'red'}
         # pn.pane.Markdown(msg, style=style)
         return pn.pane.Markdown(msg, style=style)
+
+    def updateNetrc(self):
+        ''' Update or create new ~/.netrc to include user name and passwd '''
+        if len(self.username) == 0 or len(self.password) == 0:
+            return  # Don't attempt for empty user/password
+        site = 'urs.earthdata.nasa.gov'
+        rcLine = f'machine {site} login {self.username} ' \
+            f'password {self.password}'
+        # Create blank file if not already present
+        if not os.path.exists(self.netrcFile):
+            open(self.netrcFile, 'w').close()  # Open a new file
+        os.chmod(self.netrcFile, 0o600)  # Ensure file user access only
+        #  Append to just created or existing.
+        with open(self.netrcFile, 'r+') as fp:
+            for ln in fp:
+                if site in ln and self.password in ln and self.username in ln:
+                    return  # File already exits, return
+            # not found, so add
+            print(rcLine, file=fp)
+        os.chmod(self.netrcFile, 0o600)  # Ensure file user access only
+        return
 
     def view(self):
         ''' Execute login procedure. First check if logged in. If so, return.
@@ -247,7 +280,8 @@ class NASALogin(param.Parameterized):
             self.get_cookie()
             self.first = False
         # If logged in already, print message and return
-        if self.check_cookie_is_logged_in(self.cookie_jar):
+        if self.check_cookie_is_logged_in(self.cookie_jar) and \
+                os.path.exists(self.netrcFile):
             print('Already logged in. Proceed.')
             return
         # Not logged in so start login panel
