@@ -74,7 +74,7 @@ class NASALogin(param.Parameterized):
         if os.path.exists(self.cookie_jar_path):
             os.remove(self.cookie_jar_path)
 
-    def check_cookie(self):
+    def check_cookie(self, file_check='https://urs.earthdata.nasa.gov/profile'):
         '''
         Validate cookie before we begin
         Returns
@@ -86,7 +86,6 @@ class NASALogin(param.Parameterized):
         if self.cookie_jar is None:
             return False
         # File we know is valid, used to validate cookie
-        file_check = 'https://urs.earthdata.nasa.gov/profile'
         # Apply custom Redirect Handler
         opener = build_opener(HTTPCookieProcessor(self.cookie_jar),
                               HTTPHandler(), HTTPSHandler(**self.context))
