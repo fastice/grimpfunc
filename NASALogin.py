@@ -17,27 +17,52 @@ import panel as pn
 
 
 class NASALogin(param.Parameterized):
-    # setup for password widget
+    ''' Creates a login panel that prompts for NSIDC (earthdata) credentials
+    and produces a cookie file for current and future access
+    cookieFile = '''
     username = param.String()
     password = param.String()
     # Param for enter credentianl button
-    # enterCredential = param.Boolean(False)
-    enterCredential = param.Action(
-        lambda x: x.param.trigger('enterCredential'))
+    enterCredential = \
+        param.Action(lambda x: x.param.trigger('enterCredential'))
     # Local stash of cookies so we don't always have to ask
-    cookie_jar_path = os.path.join(os.path.expanduser('~'),
-                                   ".gimp_download_cookiejar.txt")
-    cookie_jar = None
     status = False
     # For SSL
     context = {}
     first = True
+    cookie_jar_path = None
+    cookie_jar = None
+
+    def __init__(self, cookieFile='.gimp_download_cookiejar.txt',
+                 cookiePath='~'):
+        '''
+        Init, used to add cookie keywords
+        Parameters
+        ----------
+        cookieFile : str, optional
+            Cookie filename. The default is '.gimp_download_cookiejar.txt'.
+        cookiePath : str, optional
+            Cookie path. The default is '~'.
+
+        Returns
+        -------
+        '''
+        super().__init__()
+        # setup for password widget
+        self.cookie_jar_path = os.path.expanduser(f'{cookiePath}/{cookieFile}')
 
     @param.depends('enterCredential', watch=True)
     def getCredentials(self):
+        '''
+        Get user name and password when enterCredential button is pressed
+
+        Returns
+        -------
+        markdown object with login status.
+
+        '''
         # We don't have a valid cookie, prompt user for creds
         # Keep trying 'till user gets the right U:P
-        # print('called')
         count = 0
         while self.check_cookie() is False and count < 10:
             self.get_new_cookie()
@@ -49,8 +74,15 @@ class NASALogin(param.Parameterized):
         if os.path.exists(self.cookie_jar_path):
             os.remove(self.cookie_jar_path)
 
-    # Validate cookie before we begin
     def check_cookie(self):
+        '''
+        Validate cookie before we begin
+        Returns
+        -------
+        bool
+            Whether cookie valid.
+
+        '''
         if self.cookie_jar is None:
             return False
         # File we know is valid, used to validate cookie
@@ -70,6 +102,8 @@ class NASALogin(param.Parameterized):
                 return False
             # Save cookiejar
             self.cookie_jar.save(self.cookie_jar_path)
+            # For security make user accessible only
+            os.chmod(self.cookie_jar_path, 0o600)
         except HTTPError:
             # If we get this error, again, it likely means the user has not
             # agreed to current EULA
@@ -90,6 +124,12 @@ class NASALogin(param.Parameterized):
         return False
 
     def get_new_cookie(self):
+        ''' Create the new coookie.
+         Returns
+        -------
+        bool
+            Whether new cookie successful.
+        '''
         # Start by prompting user to input their credentials
         new_username = self.username
         new_password = self.password
@@ -131,8 +171,19 @@ class NASALogin(param.Parameterized):
         print(f"Response was {response.getcode()}.")
         exit(-1)
 
-    # make sure we're logged into URS
     def check_cookie_is_logged_in(self, cj):
+        '''
+        Make sure we're logged into URS
+        Parameters
+        ----------
+        cj : cookie jar object
+            The cookie jar.
+        Returns
+        -------
+        bool
+            Logged in status.
+
+        '''
         if cj is None:
             return False
         for cookie in cj:
@@ -141,17 +192,30 @@ class NASALogin(param.Parameterized):
                 return True
 
     def get_cookie(self):
+        '''
+        Get a cookies
+        Returns
+        -------
+        bool
+            Success.
+        '''
         if os.path.isfile(self.cookie_jar_path):
             self.cookie_jar = MozillaCookieJar()
             self.cookie_jar.load(self.cookie_jar_path)
         # make sure cookie is still valid
         if self.check_cookie():
-            # print(" > Re-using previous cookie jar.")
             return True
         else:
             return False
 
     def loginInstructions(self):
+        '''
+        Populate and return mark down with instructions
+        Returns
+        -------
+        text : panel markdown
+            Instructions.
+        '''
         # view depending on widget values, doesn't really matter here...
         text = pn.pane.Markdown('''
         #### Instructions:
