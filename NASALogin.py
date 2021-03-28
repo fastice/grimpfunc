@@ -258,17 +258,24 @@ class NASALogin(param.Parameterized):
         site = 'urs.earthdata.nasa.gov'
         rcLine = f'machine {site} login {self.username} ' \
             f'password {self.password}'
-        # Create blank file if not already present
-        if not os.path.exists(self.netrcFile):
-            open(self.netrcFile, 'w').close()  # Open a new file
-        os.chmod(self.netrcFile, 0o600)  # Ensure file user access only
-        #  Append to just created or existing.
-        with open(self.netrcFile, 'r+') as fp:
-            for ln in fp:
-                if site in ln and self.password in ln and self.username in ln:
-                    return  # File already exits, return
-            # not found, so add
-            print(rcLine, file=fp)
+        # Start with blank or existing lines
+        lines, newLines = [], []
+        if os.path.exists(self.netrcFile):
+            with open(self.netrcFile, 'r') as fpIn:
+                lines = fpIn.readlines()  # Open a new file
+        #
+        for line in lines:
+            if site in line and self.username in line:
+                # If password same return, else ignore line to update passwd
+                if self.password in line:
+                    return  # File already exits
+            else:
+                newLines.append(line)  # Keep existing lines for other site
+        # Correct entry not found, so append the new entry
+        newLines.append(rcLine)
+        # Save file
+        with open(self.netrcFile, 'w') as fpOut:
+            fpOut.writelines(newLines)
         os.chmod(self.netrcFile, 0o600)  # Ensure file user access only
         return
 
