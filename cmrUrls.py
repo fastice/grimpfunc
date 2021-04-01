@@ -22,9 +22,7 @@ productOptions = {'NSIDC-0642': ['termini'],
                   'NSIDC-0723': ['image', 'gamma0', 'sigma0'],
                   'NSIDC-0725': velocityOptions,
                   'NSIDC-0727': velocityOptions,
-                  'NSIDC-0731': velocityOptions,
-
-                  }
+                  'NSIDC-0731': velocityOptions}
 versions = {'NSIDC-0723': '3', 'NSIDC-0725': '2', 'NSIDC-0727': '2',
             'NSIDC-0731': '2', 'NSIDC-0642': '1'}
 defaultProduct = 'NSIDC-0723'
@@ -32,14 +30,15 @@ defaultProduct = 'NSIDC-0723'
 productGroups = {'browse': ['browse'],
                  'speed': ['vv'],
                  'velocity': ['vv', 'vx', 'vy'],
-                 'velocity+errors': ['vv', 'vx', 'vy', 'ex', 'ey', 'dT'],
+                 'velocity+errors': ['vv', 'vx', 'vy', 'ex', 'ey'],
+                 'all': ['vv', 'vx', 'vy', 'ex', 'ey', 'browse', 'dT'],
                  'sigma0': ['sigma0'],
                  'gamma0': ['gamma0'],
                  'image':  ['image'],
                  'termini': ['termini']
                  }
 fileTypes = dict.fromkeys(productGroups.keys(), ['.tif'])  # Set all to tif
-fileTypes['termini'] = ['.shp', '.dbf', '.prj', '.sbx', '.shx']  # shp
+fileTypes['termini'] = ['.shp']  # shp
 
 
 class cmrUrls(param.Parameterized):
@@ -88,11 +87,11 @@ class cmrUrls(param.Parameterized):
         '''Search NASA/NSIDC Catalog for dashboard parameters'''
         # Return if not a button push (e.g., first)
         if not self.getData:
+            print('return')
             return
         #
         newUrls = self.getURLS()
         self.msg = len(newUrls)
-
         self.newProducts(newUrls)
         # append list. Use unique to avoid selecting same data set
         self.urls = list(np.unique(newUrls + self.urls))
@@ -181,7 +180,7 @@ class cmrUrls(param.Parameterized):
                               'getData': pn.widgets.Button,
                               'clearSearch': pn.widgets.Button
                               },
-                          name='Select Data', width=500)
+                          name='Select Date Range', width=500)
         return pn.Row(pn.Column(directionsPanel, infoPanel, inputs),
                       pn.Column(self.result_view, self.displayProductCount,
                                 self.debug))

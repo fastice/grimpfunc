@@ -12,6 +12,7 @@ from datetime import datetime
 try:
     import qgis.core as qc
     import qgis.gui as qg
+    from qgis.PyQt.QtGui import QColor
 except Exception:
     # Try anaconda path
     try:
@@ -32,7 +33,7 @@ except Exception:
             '\t\033[1m\033[3m/.../qgis/python\033[0m\033[0m\n'
             'Either modify the sys.path.append line with this path in'
             'QgisGimpProject.py\nor update your python path')
-        #sys.exit()
+        sys.exit()
 
 
 class QgisGimpProject:
@@ -95,6 +96,16 @@ class QgisGimpProject:
                 os.remove(f'{rootName}.qgs')
         self.project.write(f'{rootName}.qgs')
 
+    def _getNumberOfBandsWithData(self, productFamily):
+        ''' Compute the number of bands that actually have data associated'''
+        nBands = 0
+        for band in self.gimpSetup.productFamilies[productFamily]['bands']:
+            products = \
+                self.gimpSetup.productFamilies[productFamily]['products'][band]
+            if len(products) > 0:
+                nBands += 1
+        return nBands
+
     def _addProductBand(self, band, productFamily, products,
                         productFamilyGroup):
         '''
@@ -115,7 +126,7 @@ class QgisGimpProject:
         # file name by product prefix
         baseName = \
             self.gimpSetup.productFamilies[productFamily]["productPrefix"]
-        nBands = len(self.gimpSetup.productFamilies[productFamily]['bands'])
+        nBands = self._getNumberOfBandsWithData(productFamily)
         count = 0
         for product in products:
             date1, date2 = self._getDates(product)
@@ -136,8 +147,11 @@ class QgisGimpProject:
             if count % 10 == 0:
                 print('.', end='')
             count += 1
-            # print('BandGroup', type(bandGroup))
-            self._addLayerToGroup(bandGroup, product, productName)
+            # print('BandGroup', type(bandGroup))'
+            displayOptions = \
+                self.gimpSetup.productFamilies[productFamily]['displayOptions']
+            self._addLayerToGroup(bandGroup, product, productName, band,
+                                  displayOptions)
 
     def _updateMaxExtent(self, layer):
         ''' Track maximum extent to sent visible area to includ max area'''
@@ -148,12 +162,22 @@ class QgisGimpProject:
             self.maxArea = area
             self.extent = extent
 
-    def _addLayerToGroup(self, group, product, name):
+    def _addRasterLayer(self, product, name, band, displayOptions):
+        print(name, band)
+        print(displayOptions[band])
+        layer = qc.QgsRasterLayer(product, name, 'gdal')
+        self._setLayerColorTable(layer, **displayOptions[band])
+        return layer
+
+    def _addLayerToGroup(self, group, product, name, band, displayOptions):
         ''' Add a product file to the appropriate group '''
-        if product.endswith('tif'):
-            layer = qc.QgsRasterLayer(product, name, 'gdal')  # Raster layer
+        if product.endswith('tif'):  # Raster layer
+            layer = self._addRasterLayer(product, name, band, displayOptions)
         elif product.endswith('shp'):
             layer = qc.QgsVectorLayer(product, name, 'ogr')  # Vector layer
+            symbol = layer.renderer().symbol()
+            symbol.setWidth(0.6)
+
         self.project.addMapLayer(layer, False)  # Add it as a map layer
         self._updateMaxExtent(layer)  # track extent
         group.addLayer(layer)  # Added to the group
@@ -213,7 +237,7 @@ class QgisGimpProject:
         ''' For single "band" products, dont group. But for multi band
         groupd of products (e.g., .vx, .vy) orginize in a group'''
         # if only 1 band, return the product group
-        if len(self.gimpSetup.productFamilies[productFamily]['bands']) == 1:
+        if self._getNumberOfBandsWithData(productFamily) == 1:
             return productGroup
         # For multi band, see if group exists and if not create
         for group in productGroup.children():
@@ -223,13 +247,13 @@ class QgisGimpProject:
 
     def _getTopGroup(self, productFamily):
         ''' Handle category if needed, and return group above productFamily '''
-        if productFamily['Category'] is None:
+        if productFamily['category'] is None:
             return self.root
         # Category present, so find or create
         for group in self.root.children():
-            if group.name() == productFamily['Category']:
+            if group.name() == productFamily['category']:
                 return group
-        return self.root.addGroup(productFamily['Category'])
+        return self.root.addGroup(productFamily['category'])
 
     def _addproductFamilyToTree(self, productFamily):
         ''' If it does not already exist, add a product Family to '''
@@ -256,3 +280,40 @@ class QgisGimpProject:
             date1 = datetime.strptime(product.split('/')[-2], '%Y.%m.%d')
             date2 = None
         return date1, date2
+
+    def _setLayerColorTable(self, layer, colorTable='Greys', minV=None,
+                            maxV=None, invert=False, opacity=1):
+        '''
+        Change layer to pseudocolor, set color table, and min/max values
+        '''
+        # Create style to grab a standard color table.
+        myStyle = qc.QgsStyle().defaultStyle()
+        if colorTable not in myStyle.colorRampNames():
+            print(f'Warning: colortable {colorTable} not in '
+                  '{myStyle.colorRampNames()}.\n No color table Applied')
+            return
+        # Proceed with valid color table
+        ramp = myStyle.colorRamp(colorTable)
+        if invert:
+            ramp.invert()
+        # Combine bounding colors and stops
+        colors = [ramp.color1()] + \
+            [QColor(c.color.rgb()) for c in ramp.stops()] + [ramp.color2()]
+        nColors = len(colors)
+        # Setup shader function
+        dv = (maxV - minV) / nColors
+        itemList = [qc.QgsColorRampShader.ColorRampItem(dv*n, c)
+                    for n, c in zip(range(0, nColors), colors)]
+        fcn = qc.QgsColorRampShader(colorRamp=ramp)
+        fcn.setColorRampType(qc.QgsColorRampShader.Interpolated)
+        fcn.setColorRampItemList(itemList)
+        # setup shader and add to renderer
+        shader = qc.QgsRasterShader()
+        shader.setRasterShaderFunction(fcn)
+        renderer = qc.QgsSingleBandPseudoColorRenderer(layer.dataProvider(), 1,
+                                                       shader)
+        # Set final layer properties
+        layer.setRenderer(renderer)
+        layer.renderer().setClassificationMin(minV)
+        layer.renderer().setClassificationMax(maxV)
+        layer.renderer().setOpacity(opacity)

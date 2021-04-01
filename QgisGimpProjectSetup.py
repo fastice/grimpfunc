@@ -6,12 +6,32 @@ Created on Wed Mar 17 10:47:23 2021
 @author: ian
 """
 import glob
+from copy import deepcopy
 
-productFamilyTemplate = {'name': None, 'topDir': None,
+productFamilyTemplate = {'topDir': None,
                          'productFilePrefix': None,
-                         'bands': [], 'type': 'tif', 'products': None,
+                         'bands': [], 'fileType': 'tif', 'products': None,
                          'byYear': True, 'productPrefix': None,
-                         'basePath': None, 'Category': None}
+                         'basePath': None, 'category': None}
+
+displayDefaults = {'image': {'colorTable': None, 'minV': None, 'maxV': None,
+                             'opacity': 1., 'invert': False},
+                   'sigma0': {'colorTable': None, 'minV': -20, 'maxV': 5,
+                              'opacity': 1., 'invert': False},
+                   'gamma0': {'colorTable': None, 'minV': -20, 'maxV': 5,
+                              'opacity': 1, 'invert': False},
+                   'browse': {'opacity': 0.7, 'invert': False},
+                   'vv': {'colorTable': 'Blues', 'minV': 0, 'maxV': 1500,
+                          'opacity': 1, 'invert': False},
+                   'vx': {'colorTable': 'RdBu', 'minV': -1000, 'maxV': 1000,
+                          'opacity': 1, 'invert': False},
+                   'vy': {'colorTable': 'RdBu', 'minV': -1000, 'maxV': 1000,
+                          'opacity': 1, 'invert': False},
+                   'ex': {'colorTable': 'YlGn', 'minV': 0, 'maxV': 20,
+                          'opacity': 1, 'invert': False},
+                   'ey': {'colorTable': 'YlGn', 'minV': 0, 'maxV': 20,
+                          'opacity': 1, 'invert': False},
+                   }
 
 
 class QgisGimpProjectSetup:
@@ -31,17 +51,25 @@ class QgisGimpProjectSetup:
         """
         self.defaultBasePath = defaultBasePath
 
-    def addProductFamilies(self, *productFamilies,
-                           defaultProperties=productFamilyTemplate):
+    def addProductFamilies(self, *productFamilies, **kwargs):
         """ Add a product Family to the project (e.g., monthlyMosaics)
         Parameters
         ----------
         *args : str
             Arbitrary number of product types to add to project.
+        **kwargs: optional arguments
         """
         for productFamily in productFamilies:  # loop through
+            productFamilyProperties = deepcopy(productFamilyTemplate)
+            for key in kwargs:
+                if key in productFamilyTemplate:
+                    productFamilyProperties[key] = kwargs[key]
+                else:
+                    print(f'Ignoring invalid keyword {key}')
+            #
             self.productFamilies[productFamily] = \
-                self._defaultProductFamily(productFamily, **defaultProperties)
+                self._defaultProductFamily(productFamily,
+                                           **productFamilyProperties)
 
     def updateProductFamily(self, productFamilyKey, **kwargs):
         ''' Changed the properties for an existing product type as
@@ -66,7 +94,7 @@ class QgisGimpProjectSetup:
         **kwargs : dict of keywords, or explicit keywords
             Keywords used to populate product specs.
         """
-        print(productFamily)
+        # print(productFamily)
         for kwarg in kwargs:
             if kwarg in productFamilyTemplate.keys():
                 productFamily[kwarg] = kwargs[kwarg]
@@ -85,6 +113,13 @@ class QgisGimpProjectSetup:
         for productFamily in self.productFamilies:
             self.getProducts(self.productFamilies[productFamily], urls=urls)
 
+    def fileFound(self, urlFile, productFamily, band):
+        for x in ['productFilePrefix', 'fileType']:
+            # print(productFamily[x])
+            if productFamily[x] not in urlFile:
+                return False
+        return True
+
     def filterUrls(self, urls, band, productFamily):
         ''' Given a list of urls, return all for requested band and
         productFamily '''
@@ -95,17 +130,14 @@ class QgisGimpProjectSetup:
             if band not in urlFile:
                 continue
             # Skip if prefix (e.g., S1_bks) or type (tif) not correct
-            for x in ['productFilePrefix', 'type']:
-                # print(x, productFamily[x])
-                if productFamily[x] not in urlFile:
-                    continue
+            if not self.fileFound(urlFile, productFamily, band):
+                continue  # Skip this url if no match
             # Passed all tests, so add to list
             option = ''
             if urlFile.endswith('tif'):
                 option = '?list_dir=no'
             # print(url)
             foundUrls.append(f'/vsicurl/{option}&url={url}')
-
         return foundUrls
 
     def getProducts(self, productFamily, urls=None):
@@ -120,13 +152,12 @@ class QgisGimpProjectSetup:
                 myPath = '/'.join([productFamily['basePath'],
                                    productFamily['topDir'],
                                    productFamily['productFilePrefix'],
-                                   f'*{band}*.{productFamily["type"]}'])
+                                   f'*{band}*.{productFamily["fileType"]}'])
                 productFamily['products'][band] += glob.glob(myPath)
             else:
                 foundUrls = self.filterUrls(urls, band, productFamily)
                 if len(foundUrls) > 0:
                     productFamily['products'][band] = foundUrls
-
 
     def _defaultProductFamily(self, productFamilyName, **kwargs):
         """ Create a default product dictionary """
@@ -135,5 +166,6 @@ class QgisGimpProjectSetup:
         newProductFamily['topDir'] = productFamilyName
         newProductFamily['name'] = productFamilyName
         newProductFamily['basePath'] = self.defaultBasePath
+        newProductFamily['displayOptions'] = deepcopy(displayDefaults)
         self.addProductFamilyProperties(newProductFamily, **kwargs)
         return newProductFamily
