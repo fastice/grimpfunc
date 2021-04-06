@@ -8,6 +8,7 @@ Created on Wed Mar 17 14:22:13 2021
 import sys
 import os
 from datetime import datetime
+import progressbar
 
 try:
     import qgis.core as qc
@@ -42,12 +43,14 @@ class QgisGimpProject:
 
     def __init__(self, gimpSetup, **kwargs):
         self.maxArea = 0
+        self.nAdded = 0
         self.extent = None
         self.gimpSetup = gimpSetup
         self.project = qc.QgsProject.instance()
         self.root = self.project.layerTreeRoot()
         self.canvas = qg.QgsMapCanvas()
         self._buildProductTree()
+        self._checkFirstLayerOfLastGroup(self.root)
         self._setExtent(**kwargs)
 
     def _setExtent(self, **kwargs):
@@ -63,38 +66,75 @@ class QgisGimpProject:
         self.canvas.setExtent(qc.QgsRectangle(extent['xmin'], extent['ymin'],
                                               extent['xmax'], extent['ymax']))
 
+    def _checkFirstLayerOfLastGroup(self, group):
+        ''' Recursively check move down tree unil layers are found'''
+        first = True
+        for child in group.children():
+            if isinstance(child, qc.QgsLayerTreeGroup):
+                child.setItemVisibilityChecked(first)
+                first = False
+                self._checkFirstLayerOfLastGroup(child)
+            else:
+                self.root.findLayer(
+                    child.layer().id()).setItemVisibilityChecked(True)
+                return
+
+    def _productCount(self):
+        ''' Get total number of products included in project '''
+        count = 0
+        for key in self.gimpSetup.productFamilies:
+            productFamily = self.gimpSetup.productFamilies[key]
+            for band in productFamily['products']:
+                count += len(productFamily['products'][band])
+        return count
+
     def _buildProductTree(self):
         """ Build a tree with root->topDir>products->optionalYear->name or
         Build a tree with root->topDir>products->optionalYear->name->bands
         """
+        totalProducts = self._productCount()
+        self.nAdded = 0
         # loop through product Families (e.g., annualMosaics, quarterlyMosaics)
-        for productFamily in self.gimpSetup.productFamilies:
-            # Add the product type to the tree and return the group
-            productFamilyGroup = self._addproductFamilyToTree(
-                self.gimpSetup.productFamilies[productFamily])
-            # get the list of product sets (e.g., {'vx': [files], 'vy'...)
-            productSets = \
-                self.gimpSetup.productFamilies[productFamily]['products']
-            for band in productSets:  # Add each list of product in to tree
-                print('*** band', band)
-                self._addProductBand(band, productFamily, productSets[band],
-                                     productFamilyGroup)
-    #
-
-    #def _unCheckGroup(self, group):
-    #    for group in [annual, quarterly, monthly]:
-    #    for g in group.children():
-    #        g.setExpanded(False)
-    #        g.setItemVisibilityChecked(False)
-    #        for sg in g.children():
-    #            sg.setExpanded(False)
-    #            sg.setItemVisibilityChecked(False)
+        with progressbar.ProgressBar(max_value=totalProducts) as myBar:
+            for productFamily in self.gimpSetup.productFamilies:
+                # Add the product type to the tree and return the group
+                productFamilyGroup = self._addproductFamilyToTree(
+                    self.gimpSetup.productFamilies[productFamily])
+                # get the list of product sets (e.g., {'vx': [files], 'vy'...)
+                productSets = \
+                    self.gimpSetup.productFamilies[productFamily]['products']
+                for band in productSets:  # Add each list of product in to tree
+                    self._addProductBand(band, productFamily,
+                                         productSets[band], productFamilyGroup,
+                                         myBar)
 
     def saveProject(self, rootName, append=False):
         if append is False:
             if os.path.exists(f'{rootName}.qgs'):
                 os.remove(f'{rootName}.qgs')
         self.project.write(f'{rootName}.qgs')
+
+    def saveLayerDefinitions(self, prefix, saveCategories=False):
+        ''' Save layers by productFamily '''
+        # Create list of layers to save (productFamilies or Categories)
+        if saveCategories:
+            toSave = self.gimpSetup.productCategories()
+        else:
+            toSave = list(self.gimpSetup.productFamilies.keys())
+        # Go to layers deep in the and save items in toSave
+        for level1 in self.root.children():
+            # Process level1
+            if level1.name() in toSave:
+                fileName = f'{prefix}.{level1.name()}'
+                qc.QgsLayerDefinition().exportLayerDefinition(
+                    fileName, [level1])
+                continue
+            # Not found in level1, so try level2
+            for level2 in level1.children():
+                if level2.name() in toSave:
+                    fileName = f'{prefix}.{level2.name()}'
+                    qc.QgsLayerDefinition().exportLayerDefinition(
+                        fileName, [level2])
 
     def _getNumberOfBandsWithData(self, productFamily):
         ''' Compute the number of bands that actually have data associated'''
@@ -107,7 +147,7 @@ class QgisGimpProject:
         return nBands
 
     def _addProductBand(self, band, productFamily, products,
-                        productFamilyGroup):
+                        productFamilyGroup, myBar):
         '''
         for each band (vx), process list of products (e.g.,[x.vx.tif,
         y.vx.tif....]
@@ -127,7 +167,6 @@ class QgisGimpProject:
         baseName = \
             self.gimpSetup.productFamilies[productFamily]["productPrefix"]
         nBands = self._getNumberOfBandsWithData(productFamily)
-        count = 0
         for product in products:
             date1, date2 = self._getDates(product)
             dateStr = f'{date1.strftime("%Y-%m-%d")}'
@@ -144,14 +183,12 @@ class QgisGimpProject:
             bandGroup = self._getProductGroup(productFamilyGroup,
                                               productGroupName, productName,
                                               date1, date2, productFamily)
-            if count % 10 == 0:
-                print('.', end='')
-            count += 1
-            # print('BandGroup', type(bandGroup))'
             displayOptions = \
                 self.gimpSetup.productFamilies[productFamily]['displayOptions']
             self._addLayerToGroup(bandGroup, product, productName, band,
                                   displayOptions)
+            self.nAdded += 1
+            myBar.update(self.nAdded)
 
     def _updateMaxExtent(self, layer):
         ''' Track maximum extent to sent visible area to includ max area'''
@@ -163,21 +200,29 @@ class QgisGimpProject:
             self.extent = extent
 
     def _addRasterLayer(self, product, name, band, displayOptions):
-        print(name, band)
-        print(displayOptions[band])
+        ''' Create raster layer and set display options'''
+        # print(name, band)
+        # print(displayOptions[band])
         layer = qc.QgsRasterLayer(product, name, 'gdal')
-        self._setLayerColorTable(layer, **displayOptions[band])
+        if displayOptions[band]['colorTable'] is not None:
+            self._setLayerColorTable(layer, **displayOptions[band])
+        layer.renderer().setOpacity(displayOptions[band]['opacity'])
         return layer
+
+    def _addVectorLayer(self, product, name):
+        ''' Create raster layer and set display options'''
+        layer = qc.QgsVectorLayer(product, name, 'ogr')  # Vector layer
+        symbol = layer.renderer().symbol()
+        symbol.setWidth(0.6)
 
     def _addLayerToGroup(self, group, product, name, band, displayOptions):
         ''' Add a product file to the appropriate group '''
+        # Handle shape and layer cases
         if product.endswith('tif'):  # Raster layer
             layer = self._addRasterLayer(product, name, band, displayOptions)
         elif product.endswith('shp'):
-            layer = qc.QgsVectorLayer(product, name, 'ogr')  # Vector layer
-            symbol = layer.renderer().symbol()
-            symbol.setWidth(0.6)
-
+            layer = self.addVectorLayer(product, name)
+        # General layer stuff
         self.project.addMapLayer(layer, False)  # Add it as a map layer
         self._updateMaxExtent(layer)  # track extent
         group.addLayer(layer)  # Added to the group
@@ -268,17 +313,21 @@ class QgisGimpProject:
         ''' Extract date from file name. dateLocs defines where to find date
         for a given prefix'''
         # setup table, add to as needed.
-        dateLocs = {'GL_vel': (4, 5), 'GL_S1bks': (3, 4),'termini': None}
+        dateLocs = {'GL_vel': (4, 5), 'GL_S1bks': (3, 4), 'TSX': (2, 3),
+                    'termini': None}
         # Get dates
-        if 'termini' not in product:
-            # split path
-            pieces = product.split('/')[-1].split('_')
-            prefix = '_'.join(pieces[0:2])
-            date1 = datetime.strptime(pieces[dateLocs[prefix][0]], '%d%b%y')
-            date2 = datetime.strptime(pieces[dateLocs[prefix][1]], '%d%b%y')
-        else:
+        if 'termini' in product:
             date1 = datetime.strptime(product.split('/')[-2], '%Y.%m.%d')
             date2 = None
+        else:
+            # split path
+            pieces = product.split('/')[-1].split('_')
+            if 'TSX' in pieces:
+                prefix = 'TSX'
+            else:
+                prefix = '_'.join(pieces[0:2])
+            date1 = datetime.strptime(pieces[dateLocs[prefix][0]], '%d%b%y')
+            date2 = datetime.strptime(pieces[dateLocs[prefix][1]], '%d%b%y')
         return date1, date2
 
     def _setLayerColorTable(self, layer, colorTable='Greys', minV=None,
@@ -301,8 +350,8 @@ class QgisGimpProject:
             [QColor(c.color.rgb()) for c in ramp.stops()] + [ramp.color2()]
         nColors = len(colors)
         # Setup shader function
-        dv = (maxV - minV) / nColors
-        itemList = [qc.QgsColorRampShader.ColorRampItem(dv*n, c)
+        dv = (maxV - minV) / (nColors-1)
+        itemList = [qc.QgsColorRampShader.ColorRampItem(minV + dv*n, c)
                     for n, c in zip(range(0, nColors), colors)]
         fcn = qc.QgsColorRampShader(colorRamp=ramp)
         fcn.setColorRampType(qc.QgsColorRampShader.Interpolated)

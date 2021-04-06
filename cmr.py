@@ -12,9 +12,10 @@ import itertools
 CMR_URL = 'https://cmr.earthdata.nasa.gov'
 URS_URL = 'https://urs.earthdata.nasa.gov'
 CMR_PAGE_SIZE = 2000
-CMR_FILE_URL = ('{0}/search/granules.json?provider=NSIDC_ECS'
-                '&sort_key[]=start_date&sort_key[]=producer_granule_id'
-                '&scroll=true&page_size={1}'.format(CMR_URL, CMR_PAGE_SIZE))
+CMR_FILE_URL = (f'{CMR_URL}/search/granules.json?provider=NSIDC_ECS'
+                f'&sort_key[]=start_date&sort_key[]=producer_granule_id'
+                f'&scroll=false&page_size={CMR_PAGE_SIZE}')
+
 
 def cmr_filter_urls(search_results):
     """Select only the desired data files from CMR response."""
@@ -37,13 +38,14 @@ def cmr_filter_urls(search_results):
             # Why are we excluding these links?
             continue
         if 'rel' in link and 'data#' not in link['rel']:
-            # Exclude links which are not classified by CMR as "data" or "metadata"
+            # Exclude links which are not classified by CMR as "data" or
+            # "metadata"
             continue
 
         if 'title' in link and 'opendap' in link['title'].lower():
             # Exclude OPeNDAP links--they are responsible for many duplicates
             # This is a hack; when the metadata is updated to properly identify
-            # non-datapool links, we should be able to do this in a non-hack way
+            # non-datapool links, we should be possible in a non-hack way
             continue
 
         filename = link['href'].split('/')[-1]
@@ -59,34 +61,41 @@ def cmr_filter_urls(search_results):
 
 def query_cmr(query_url):
     ''' return JSON / python dictionary'''
-    #print(query_url)
+    # print(query_url)
     response = requests.get(query_url)
     search_results = response.json()
     return search_results
 
 
-
-def build_cmr_query_url(short_name, version, time_start, time_end,
+def build_cmr_query_url(short_name, version, time_start, time_end, page,
                         bounding_box=None, polygon=None,
                         filename_filter=None):
-    params = '&short_name={0}'.format(short_name)
-    params += '&version={0}'.format(version)
-    params += '&temporal[]={0},{1}'.format(time_start, time_end)
+    params = f'&short_name={short_name}'
+    params += f'&version={version}'
+    params += f'&temporal[]={time_start},{time_end}'
     if polygon:
-        params += '&polygon={0}'.format(polygon)
+        params += f'&polygon={polygon}'
     elif bounding_box:
-        params += '&bounding_box={0}'.format(bounding_box)
+        params += f'&bounding_box[]={bounding_box}'
     if filename_filter:
         option = '&options[producer_granule_id][pattern]=true'
-        params += '&producer_granule_id[]={0}{1}'.format(filename_filter, option)
-    print(params)
-    return CMR_FILE_URL + params
+        params += f'&producer_granule_id[]={filename_filter}{option}'
+    # Return search string
+    with open('test.txt','w') as fp:
+        print(CMR_FILE_URL + f'&page_num={page}' + params,file=fp)
+    return CMR_FILE_URL + f'&page_num={page}' + params
 
 
-
-def get_urls(short_name, version, time_start, time_end, bounding_box, polygon, filename_filter):
-    query_url = build_cmr_query_url(short_name, version, time_start, time_end, bounding_box, polygon, filename_filter)
-    search_results = query_cmr(query_url)
-    urls = cmr_filter_urls(search_results)
-    return urls
-
+def get_urls(short_name, version, time_start, time_end, bounding_box, polygon,
+             filename_filter):
+    urls = []
+    # Loop over pages - this should allow 30,000 returns 15*2000
+    for page in range(1, 16):
+        query_url = build_cmr_query_url(short_name, version, time_start,
+                                        time_end, page,
+                                        bounding_box, polygon, filename_filter)
+        search_results = query_cmr(query_url)
+        urls += cmr_filter_urls(search_results)
+        # Page not full so done
+        if len(search_results['feed']['entry']) < CMR_PAGE_SIZE:
+            return urls

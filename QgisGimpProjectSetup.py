@@ -7,20 +7,23 @@ Created on Wed Mar 17 10:47:23 2021
 """
 import glob
 from copy import deepcopy
+import numpy as np
 
 productFamilyTemplate = {'topDir': None,
                          'productFilePrefix': None,
                          'bands': [], 'fileType': 'tif', 'products': None,
                          'byYear': True, 'productPrefix': None,
-                         'basePath': None, 'category': None}
+                         'basePath': None, 'category': None,
+                         'displayOptions': None}
 
 displayDefaults = {'image': {'colorTable': None, 'minV': None, 'maxV': None,
                              'opacity': 1., 'invert': False},
-                   'sigma0': {'colorTable': None, 'minV': -20, 'maxV': 5,
+                   'sigma0': {'colorTable': 'Grays', 'minV': -20, 'maxV': 5,
                               'opacity': 1., 'invert': False},
-                   'gamma0': {'colorTable': None, 'minV': -20, 'maxV': 5,
+                   'gamma0': {'colorTable': 'Grays', 'minV': -20, 'maxV': 5,
                               'opacity': 1, 'invert': False},
-                   'browse': {'opacity': 0.7, 'invert': False},
+                   'browse': {'colorTable': None, 'opacity': 0.7,
+                              'invert': False},
                    'vv': {'colorTable': 'Blues', 'minV': 0, 'maxV': 1500,
                           'opacity': 1, 'invert': False},
                    'vx': {'colorTable': 'RdBu', 'minV': -1000, 'maxV': 1000,
@@ -60,16 +63,14 @@ class QgisGimpProjectSetup:
         **kwargs: optional arguments
         """
         for productFamily in productFamilies:  # loop through
-            productFamilyProperties = deepcopy(productFamilyTemplate)
-            for key in kwargs:
-                if key in productFamilyTemplate:
-                    productFamilyProperties[key] = kwargs[key]
-                else:
-                    print(f'Ignoring invalid keyword {key}')
-            #
             self.productFamilies[productFamily] = \
                 self._defaultProductFamily(productFamily,
-                                           **productFamilyProperties)
+                                           **kwargs)
+
+    def productCategories(self):
+        ''' Return list of product categories'''
+        categories = [y['category'] for x, y in self.productFamilies.items()]
+        return list(np.unique(categories))
 
     def updateProductFamily(self, productFamilyKey, **kwargs):
         ''' Changed the properties for an existing product type as
@@ -159,9 +160,13 @@ class QgisGimpProjectSetup:
                 if len(foundUrls) > 0:
                     productFamily['products'][band] = foundUrls
 
+    def defaultDisplayOptions(self):
+        ''' Return a copy of the default display options '''
+        return deepcopy(displayDefaults)
+
     def _defaultProductFamily(self, productFamilyName, **kwargs):
         """ Create a default product dictionary """
-        newProductFamily = productFamilyTemplate.copy()
+        newProductFamily = deepcopy(productFamilyTemplate)
         # Default to product name
         newProductFamily['topDir'] = productFamilyName
         newProductFamily['name'] = productFamilyName
