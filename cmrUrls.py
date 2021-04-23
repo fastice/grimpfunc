@@ -31,7 +31,7 @@ versions = {'NSIDC-0723': '3', 'NSIDC-0725': '2', 'NSIDC-0727': '2',
 defaultProduct = 'NSIDC-0723'
 
 productGroups = {'browse': ['browse'],
-                 'speed': ['vv'],
+                 'speed': ['vv'], '-': ['vv'],
                  'velocity': ['vv', 'vx', 'vy'],
                  'velocity+errors': ['vv', 'vx', 'vy', 'ex', 'ey'],
                  'all': ['vv', 'vx', 'vy', 'ex', 'ey', 'browse', 'dT'],
@@ -49,6 +49,7 @@ defaultBounds = {'LatMin': 60, 'LatMax': 82, 'LonMin': -75, 'LonMax': -5}
 class cmrUrls(param.Parameterized):
     '''Class to allow user to select product params and then search for
     matching data'''
+
     # product Information
     # Select Product
     product = param.ObjectSelector(defaultProduct, objects=products)
@@ -78,17 +79,33 @@ class cmrUrls(param.Parameterized):
     #
     Search = param.Boolean(False)
     Clear = param.Boolean(False)
-    first = True
-    cogs = []
-    urls = []
-    nUrls = 0
-    productList = []
-    nProducts = 0
-    newProductCount = 0
-    dates = []
-    msg = 'Init'
-    # initialize with empty list
     results = pd.DataFrame()
+
+    def __init__(self, mode='none'):
+        super().__init__()
+        # Adjust options if subsetter mode
+        self.mode = mode.lower()
+        if self.mode == 'subsetter':
+            self.param.Clear.precedence = -1
+            for prod in ['NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731']:
+                productOptions[prod] = ['-']
+            productOptions['NSIDC-0481'] = self.TSXBoxNames()
+            for x in productOptions['NSIDC-0481']:
+                productGroups[x] = ['vv']
+                fileTypes[x] = ['.tif']
+            self.param.product.objects = self.param.product.objects[1:]
+        #self.productGroups = productGroups
+        self.first = True
+        self.cogs = []
+        self.urls = []
+        self.nUrls = 0
+        self.productList = []
+        self.nProducts = 0
+        self.newProductCount = 0
+        self.dates = []
+        self.msg = 'Init'
+    # initialize with empty list
+
 
     def getCogs(self):
         return [x for x in self.urls if x.endswith('.tif')]
@@ -98,6 +115,10 @@ class cmrUrls(param.Parameterized):
 
     @param.depends('Clear', watch=True)
     def clearData(self):
+        self.resetData()
+        self.Clear = False
+
+    def resetData(self):
         self.products = []
         self.urls = []
         self.nUrls = 0
@@ -107,15 +128,16 @@ class cmrUrls(param.Parameterized):
         self.productList = []
         self.results = pd.DataFrame(zip(self.dates, self.productList),
                                     columns=['date', 'product'])
-        self.Clear = False
 
     @param.depends('Search', watch=True)
     def findData(self):
         '''Search NASA/NSIDC Catalog for dashboard parameters'''
         # Return if not a button push (e.g., first)
         if not self.Search:
-            print('return')
             return
+        #
+        if self.mode == 'subsetter':  # Start fresh for each search
+            self.resetData()
         #
         newUrls = self.getURLS()
         self.msg = len(newUrls)
@@ -146,26 +168,29 @@ class cmrUrls(param.Parameterized):
         self.dates = [self.dates[i] for i in uIndex]
         self.newProductCount = self.nProducts - oldCount
 
+    def boundingBox(self):
+        ''' Create bounding box string for search'''
+        return f'{self.LonMin.value:.2f},{self.LatMin.value:.2f},' \
+            f'{self.LonMax.value:.2f},{self.LatMax.value:.2f}'
+
     def getURLS(self):
         ''' Get list of URLs for the product '''
         dateFormat1, dateFormat2 = '%Y-%m-%dT00:00:01Z', '%Y-%m-%dT00:23:59'
         version = versions[self.product]  # Current Version for product
         polygon = None
-        bounding_box = f'{self.LonMin.value:.2f},{self.LatMin.value:.2f},' \
-                       f'{self.LonMax.value:.2f},{self.LatMax.value:.2f}'
+        bounding_box = self.boundingBox()
+        pattern = '*'
+        if self.mode == 'subsetter' and self.product == 'NSIDC-0481':
+            pattern = f'*{self.productFilter}*'  # Include TSX box for subset
         newUrls = []
         # Future proof by increasing version if nothing found
         for i in range(0, 5):
             allUrls = gimp.get_urls(self.product, str(int(version) + i),
                                     self.firstDate.strftime(dateFormat1),
                                     self.lastDate.strftime(dateFormat2),
-                                    bounding_box, polygon, '*')
-            self.msg = f'{self.product} {version}'
-            self.debug()
+                                    bounding_box, polygon, pattern)
             if len(allUrls) > 0:  # Some found so assume version current
                 break
-
-        # filter urls for ones to keep
         for url in allUrls:
             # get all urls for group (e.g., vx)
             for productGroup in productGroups[self.productFilter]:
@@ -211,10 +236,23 @@ class cmrUrls(param.Parameterized):
         return pn.widgets.DataFrame(self.results, height=600,
                                     autosize_mode='fit_columns')
 
-    def findTSXBoxes(self):
+    def TSXBoxNames(self):
+        ''' Get list of all TSX boxes'''
+        date1, date2 = '2009-01-01T00:00:01Z', '2029-01-01T00:00:01Z'
+        for i in range(0, 5):
+            TSXurls = gimp.get_urls('NSIDC-0481',
+                                    str(int(versions['NSIDC-0481']) + i),
+                                    date1, date2,
+                                    self.boundingBox(), None, '*')
+            if len(TSXurls) > 0:
+                return self.findTSXBoxes(urls=TSXurls)
+
+    def findTSXBoxes(self, urls=None):
         ''' Return list of unique boxes for the cogs '''
+        if urls is None:
+            urls = self.getCogs()
         return list(np.unique([x.split('/')[-1].split('_')[1]
-                              for x in self.getCogs() if 'TSX' in x]))
+                              for x in urls if 'TSX' in x]))
 
     def displayProductCount(self):
         return pn.pane.Markdown(
@@ -235,40 +273,41 @@ class cmrUrls(param.Parameterized):
         * Press Clear to remove all results and start over
         ''')
         # Data legend
-        infoPanelLeft = \
-            pn.pane.Markdown('''
-                **Product Key:**<br/>
-                - **NSIDC-0642:** Terminus Locations<br/>
-                - **NSIDC-0723:** S1A/B Image Mosaics<br/>
-                - **NSIDC-0725:** Annual Velocity''')
-        infoPanelRight = \
-            pn.pane.Markdown('''
-                <br/>
-                - **NSIDC-0727:** Quarterly Velocity<br/>
-                - **NSIDC-0731:** Monthly Velocity<br/>
-                - **NSIDC-0481:** TSX Individual Glacier Velocity<br/>
-                ''')
-        pn.Row(infoPanelLeft, infoPanelRight)
+        names = ['- **NSIDC-0642:** Terminus Locations<br/>',
+                 '- **NSIDC-0723:** S1A/B Image Mosaics<br/>',
+                 '- **NSIDC-0725:** Annual Velocity<br/>',
+                 '- **NSIDC-0727:** Quarterly Velocity<br/>',
+                 '- **NSIDC-0731:** Monthly Velocity<br/>',
+                 '- **NSIDC-0481:** TSX Individual Glacier Velocity']
+        searchWidgets = {'product': pn.widgets.RadioButtonGroup,
+                         'productFilter': pn.widgets.Select,
+                         'firstDate': pn.widgets.DatePicker,
+                         'lastDate': pn.widgets.DatePicker,
+                         'Search': pn.widgets.Button}
+        if self.mode == 'subsetter':
+            names = names[1:]
+        #else:  # Non subsetter so include clear
+        searchWidgets['Clear'] = pn.widgets.Button
+        #
+        infoPanel = pn.Row(
+            pn.pane.Markdown(
+                f'''**Product Key: **<br/>{''.join(names[0:3])}'''),
+            pn.pane.Markdown(f'''<br/>{''.join(names[3:])}'''))
         leftWidth = 600
         self.inputs = pn.Param(self.param,
-                               widgets={
-                                  'product': pn.widgets.RadioButtonGroup,
-                                  'productFilter': pn.widgets.Select,
-                                  'firstDate': pn.widgets.DatePicker,
-                                  'lastDate': pn.widgets.DatePicker,
-                                  'Search': pn.widgets.Button,
-                                  'Clear': pn.widgets.Button,
-                                  },
+                               widgets=searchWidgets,
                                name='Select Product & Parameters',
                                width=leftWidth)
-        boundsPanel = pn.Column(pn.Row(self.LatMin, self.LatMax),
-                                pn.Row(self.LonMin, self.LonMax))
-        boundsLabel = pn.pane.Markdown('###Search Area (NSIDC-481 only)')
-        infoPanel = pn.Row(infoPanelLeft, infoPanelRight)
-        return pn.Row(pn.Column(directionsPanel,  self.inputs,
-                                boundsLabel, boundsPanel, infoPanel, min_width=leftWidth),
-                      pn.Column(self.result_view, self.displayProductCount,
 
+        panels = [directionsPanel, self.inputs]
+        if self.mode != 'subsetter':
+            boundsPanel = pn.Column(pn.Row(self.LatMin, self.LatMax),
+                                    pn.Row(self.LonMin, self.LonMax))
+            boundsLabel = pn.pane.Markdown('###Search Area (NSIDC-481 only)')
+            panels += [boundsPanel, boundsLabel]
+        panels += [infoPanel]
+        return pn.Row(pn.Column(*panels, min_width=leftWidth),
+                      pn.Column(self.result_view, self.displayProductCount,
                                 self.debug))
 
     def panel(self):

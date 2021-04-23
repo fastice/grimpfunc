@@ -81,8 +81,6 @@ def build_cmr_query_url(short_name, version, time_start, time_end, page,
         option = '&options[producer_granule_id][pattern]=true'
         params += f'&producer_granule_id[]={filename_filter}{option}'
     # Return search string
-    with open('test.txt','w') as fp:
-        print(CMR_FILE_URL + f'&page_num={page}' + params,file=fp)
     return CMR_FILE_URL + f'&page_num={page}' + params
 
 
@@ -94,6 +92,7 @@ def get_urls(short_name, version, time_start, time_end, bounding_box, polygon,
         query_url = build_cmr_query_url(short_name, version, time_start,
                                         time_end, page,
                                         bounding_box, polygon, filename_filter)
+        # print(query_url)
         search_results = query_cmr(query_url)
         urls += cmr_filter_urls(search_results)
         # Page not full so done

@@ -154,7 +154,7 @@ class QgisGimpProjectSetup:
                                    productFamily['topDir'],
                                    productFamily['productFilePrefix'],
                                    f'*{band}*.{productFamily["fileType"]}'])
-                productFamily['products'][band] += glob.glob(myPath)
+                productFamily['products'][band] += sorted(glob.glob(myPath))
             else:
                 foundUrls = self.filterUrls(urls, band, productFamily)
                 if len(foundUrls) > 0:
