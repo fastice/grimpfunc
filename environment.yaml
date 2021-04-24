@@ -27,3 +27,6 @@ dependencies:
   - nodejs
   - param
   - progressbar2
+  - dask
+  - datashader
+  
