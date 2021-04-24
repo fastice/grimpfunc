@@ -68,7 +68,9 @@ class boxPicker():
     def boxBounds(self, decimals=-3):
         ''' Return a dictionary with bounding box '''
         keys = ['minx', 'miny', 'maxx', 'maxy']
-        bounds = tuple(np.around(self.box.bounds, decimals=decimals))
+        # Force as float so yaml dump writes as ascii
+        bounds = tuple(float(x)
+                       for x in np.around(self.box.bounds, decimals=decimals))
         return dict(zip(keys, bounds))
 
     def saveBox(self, boxFile):
