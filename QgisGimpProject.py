@@ -39,14 +39,35 @@ except Exception:
 
 class QgisGimpProject:
     """ An object for the class is used to collect all of the data needed
-    to build a QGIS project"""
+    to build a QGIS project using the QGIS python API"""
 
-    def __init__(self, gimpSetup, **kwargs):
+    def __init__(self, gimpSetup, crs=3413, relative=False, **kwargs):
+        '''
+        Init
+        Parameters
+        ----------
+        gimpSetup : QgisGimpProjectSetup
+            Setup object with all of the nfo.
+        crs : int, optional
+           epsg code. The default is 3413.
+        relative : Bool, optional
+            If true paths in QGIS project will be relative rather than
+            absolute. The default is False.
+        **kwargs : float
+            xmin, xmax, ymin, ymax.
+        Returns
+        -------
+        None.
+
+        '''
         self.maxArea = 0
         self.nAdded = 0
         self.extent = None
         self.gimpSetup = gimpSetup
         self.project = qc.QgsProject.instance()
+        # Default to absolute paths
+        self.project.writeEntry('Paths', 'Absolute', not relative)
+        self.project.setCrs(qc.QgsCoordinateReferenceSystem(crs))
         self.root = self.project.layerTreeRoot()
         self.canvas = qg.QgsMapCanvas()
         self._buildProductTree()
@@ -206,14 +227,20 @@ class QgisGimpProject:
         layer = qc.QgsRasterLayer(product, name, 'gdal')
         if displayOptions[band]['colorTable'] is not None:
             self._setLayerColorTable(layer, **displayOptions[band])
-        layer.renderer().setOpacity(displayOptions[band]['opacity'])
+            layer.renderer().setOpacity(displayOptions[band]['opacity'])
         return layer
 
     def _addVectorLayer(self, product, name):
         ''' Create raster layer and set display options'''
         layer = qc.QgsVectorLayer(product, name, 'ogr')  # Vector layer
         symbol = layer.renderer().symbol()
-        symbol.setWidth(0.6)
+        # Very basic styling - could be updated
+        if symbol.type() == 1:  # Line
+            symbol.setWidth(0.6)  # Just up line width
+        elif symbol.type() == 2:  # Fill
+            mySymbol = qc.QgsStyle.defaultStyle().symbol('outline red')
+            layer.renderer().setSymbol(mySymbol)
+        return layer
 
     def _addLayerToGroup(self, group, product, name, band, displayOptions):
         ''' Add a product file to the appropriate group '''
@@ -221,12 +248,13 @@ class QgisGimpProject:
         if product.endswith('tif'):  # Raster layer
             layer = self._addRasterLayer(product, name, band, displayOptions)
         elif product.endswith('shp'):
-            layer = self.addVectorLayer(product, name)
+            layer = self._addVectorLayer(product, name)
         # General layer stuff
         self.project.addMapLayer(layer, False)  # Add it as a map layer
         self._updateMaxExtent(layer)  # track extent
         group.addLayer(layer)  # Added to the group
         # Unexpand color table
+        # if product.endswith('tif'):
         self.root.findLayer(layer.id()).setExpanded(False)
         self.root.findLayer(layer.id()).setItemVisibilityChecked(False)
 
@@ -337,6 +365,7 @@ class QgisGimpProject:
         '''
         # Create style to grab a standard color table.
         myStyle = qc.QgsStyle().defaultStyle()
+        # print(myStyle.colorRampNames())
         if colorTable not in myStyle.colorRampNames():
             print(f'Warning: colortable {colorTable} not in '
                   '{myStyle.colorRampNames()}.\n No color table Applied')

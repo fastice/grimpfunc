@@ -81,10 +81,12 @@ class cmrUrls(param.Parameterized):
     Clear = param.Boolean(False)
     results = pd.DataFrame()
 
-    def __init__(self, mode='none'):
+    def __init__(self, mode='none', debug=False):
         super().__init__()
         # Adjust options if subsetter mode
         self.mode = mode.lower()
+        # Subsetter mode pick by 481 products by box name and
+        # Only 1 product saved
         if self.mode == 'subsetter':
             self.param.Clear.precedence = -1
             for prod in ['NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731']:
@@ -94,7 +96,7 @@ class cmrUrls(param.Parameterized):
                 productGroups[x] = ['vv']
                 fileTypes[x] = ['.tif']
             self.param.product.objects = self.param.product.objects[1:]
-        #self.productGroups = productGroups
+        # Init variables
         self.first = True
         self.cogs = []
         self.urls = []
@@ -103,15 +105,28 @@ class cmrUrls(param.Parameterized):
         self.nProducts = 0
         self.newProductCount = 0
         self.dates = []
+        self.debug = debug
         self.msg = 'Init'
     # initialize with empty list
-
 
     def getCogs(self):
         return [x for x in self.urls if x.endswith('.tif')]
 
     def getShapes(self):
         return [x for x in self.urls if x.endswith('.shp')]
+
+    def checkIDs(self, testIDs):
+        ''' Check if 1 or more of the ids in testIDs is in the current IDs'''
+        for id in self.getIDs():  # Check each id type
+            if id in testIDs:
+                return True  # Return if found
+        return False  # None present
+
+    def getIDs(self):
+        ''' Get the unique list of ids from the cog and shape files'''
+        files = self.getCogs() + self.getShapes()
+        fileIDs = [x.split('/')[-3].split('.')[0] for x in files]  # Find ids
+        return np.unique(fileIDs)  # Return the unique ids
 
     @param.depends('Clear', watch=True)
     def clearData(self):
@@ -251,16 +266,23 @@ class cmrUrls(param.Parameterized):
         ''' Return list of unique boxes for the cogs '''
         if urls is None:
             urls = self.getCogs()
-        return list(np.unique([x.split('/')[-1].split('_')[1]
-                              for x in urls if 'TSX' in x]))
+        boxes = list(np.unique([x.split('/')[-1].split('_')[1]
+                                for x in urls if 'TSX' in x]))
+        if not boxes:  # Empty list, so fill with ''
+            boxes = ['']
+        return boxes
 
     def displayProductCount(self):
         return pn.pane.Markdown(
             f'### {self.newProductCount} New Products\n'
             f'### {self.nUrls} Total Products')
 
-    def debug(self):
-        return pn.pane.Markdown(f'debug {self.msg}')
+    def debugMessage(self):
+        if self.debug:
+            msg = f'debug {self.msg}'
+        else:
+            msg = ''
+        return pn.pane.Markdown(msg)
 
     def view(self):
         ''' Display panel for getting data '''
@@ -286,7 +308,7 @@ class cmrUrls(param.Parameterized):
                          'Search': pn.widgets.Button}
         if self.mode == 'subsetter':
             names = names[1:]
-        #else:  # Non subsetter so include clear
+        # Clear precedence ensures this won't plot in subsetter mode
         searchWidgets['Clear'] = pn.widgets.Button
         #
         infoPanel = pn.Row(
@@ -308,11 +330,7 @@ class cmrUrls(param.Parameterized):
         panels += [infoPanel]
         return pn.Row(pn.Column(*panels, min_width=leftWidth),
                       pn.Column(self.result_view, self.displayProductCount,
-                                self.debug))
+                                self.debugMessage))
 
     def panel(self):
         return self.view()
-
-
-# myUrls = cmrUrls()
-# myUrls.panel() #add .servable() if deploying via a server

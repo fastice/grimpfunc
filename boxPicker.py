@@ -23,6 +23,22 @@ class boxPicker():
     ''' Pick a box on a SAR map '''
 
     def __init__(self, mapUrl=None, bbox=boxDefault, boxFile=None):
+        '''
+        Init routine for a boxPicker
+
+        Parameters
+        ----------
+        mapUrl : str, optional
+            url for base mape to show. The default is None, which loads a
+            2020 map.
+        bbox : dict, optional
+           Dictionary with bounding box. The default is boxDefault.
+        boxFile : str, optional
+            File path in which to write box. The default is None.
+        Returns
+        -------
+        None.
+        '''
         self.mapUrl = mapUrl
         if self.mapUrl is None:
             self.mapUrl = self._getDefaultMap()
@@ -49,7 +65,7 @@ class boxPicker():
                 return list(filter(lambda x: '.tif' in x, urls))[0]
         print('Warning could not find default map')
 
-    def plotMap(self):
+    def plotMap(self, show=True):
         ''' Plot the map'''
         da = rioxarray.open_rasterio(self.mapUrl, overview_level=3,
                                      chunks=dict(band=1, y="auto", x=-1),
@@ -62,7 +78,10 @@ class boxPicker():
         self.box.source = img
         bounds = hv.DynamicMap(lambda bounds: hv.Bounds(bounds),
                                streams=[self.box]).opts(color='red')
-        mapview = pn.Column(img * bounds)
+        if show:
+            mapview = pn.Column(img * bounds)
+        else:
+            mapview = None
         return mapview
 
     def boxBounds(self, decimals=-3):
@@ -81,7 +100,7 @@ class boxPicker():
             yaml.dump(self.boxBounds(), fp)
 
     def readBox(self, boxFile):
-        ''' Read a box file '''
+        ''' Read a a yaml file with box and return bbox '''
         if not boxFile.endswith('.yaml'):
             boxFile += '.yaml'
         # Existence check

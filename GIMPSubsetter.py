@@ -35,6 +35,8 @@ bandsDict = {'vv': {'template': 'vv', 'noData': -1., 'name': 'velocity'},
 
 
 class GIMPSubsetter():
+    ''' Class to open remote data set and create a rioxarry. The result can
+    then be cropped to create a subset, which can then be saved to a netcdf'''
 
     def __init__(self, bands=['vv'], urls=None):
         self.urls = urls
@@ -50,7 +52,6 @@ class GIMPSubsetter():
         if productType not in productTypeDict.keys():
             print(f'Warning in valid productType: {productType}')
             return None
-
         das = []
         for band in self.bands:
             template = bandsDict[band]['template']
@@ -95,11 +96,10 @@ class GIMPSubsetter():
         return bands
 
     def loadDataArray(self, bands=None):
-        ''' Load and concatenate arrays to create a dataArry with coordinates
+        ''' Load and concatenate arrays to create a rioxArray with coordinates
         time, component, y, x'''
         # NOTE: can have server-size issues w/ NSIDC if going above 15 threads
         # if psutil.cpu_count() > 15: num_threads = 12
-
         self.bands = self._checkBands(bands)
         with dask.config.set({'scheduler': 'threads', 'num_workers': 8}):
             self.dataArrays = dask.compute(*[self.lazy_open(url, masked=False)
@@ -108,7 +108,7 @@ class GIMPSubsetter():
         self.DA = xr.concat(self.dataArrays, dim='time', join='override',
                             combine_attrs='drop')
 
-    def subSet(self, bbox):
+    def subSetData(self, bbox):
         ''' Subset dataArray with
         bbox = {'minx': minx, 'miny': miny, 'maxx': maxx, 'miny': miny}
         '''
@@ -125,7 +125,7 @@ class GIMPSubsetter():
         if not already present.
         '''
         if bbox is not None:
-            self.subSet(bbox)
+            self.subSetData(bbox)
         if self.subset is None:
             print('No subset present - set bbox={"minxx"...}')
             return
@@ -134,6 +134,7 @@ class GIMPSubsetter():
         if os.path.exists(cdfFile):
             os.remove(cdfFile)
         # To many workers can cause a failure
-        with dask.config.set({'scheduler': 'threads', 'num_workers': numWorkers}):
+        with dask.config.set({'scheduler': 'threads',
+                              'num_workers': numWorkers}):
             self.subset.to_netcdf(path=cdfFile)
         return cdfFile

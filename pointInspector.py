@@ -8,6 +8,7 @@ Created on Fri Apr 16 15:50:52 2021
 import holoviews as hv
 import numpy as np
 from bokeh.models.formatters import DatetimeTickFormatter
+import panel as pn
 # from datetime import datetime
 
 defaultImgOpts = {'vv': {'clim': (0, 3000), 'logz': True, 'cmap': 'viridis'},
@@ -38,17 +39,34 @@ noDataValues = {'vv': -1.0, 'vx': -2.0e9, 'vy': -2e9, 'ex': -1.0,
 
 
 class pointInspector():
-    ''' Creates objects that can display map view xarray of time stacked xy
-    planes and plot times series of points '''
+    ''' Input an xarray is stacked xy
+    planes in time with multiple components X[time][component][x][y].
+    Then display a map of the result so that users can pick points to be
+    plotted as a time series.
+    '''
 
     def __init__(self, xArray, noData=None, component='vv'):
+        '''
+        Initilzation routine.
+        Parameters
+        ----------
+        xArray : xarray
+            X[time][component][x][y]..
+        noData : TYPE, optional
+            No data value. The default is None.
+        component : string, optional
+            The component to plot (data dependent). The default is 'vv'.
+        Returns
+        -------
+        None.
+        '''
         self.setData(xArray)
         self.component = component
         self.setNoDataValue(noData=noData)
         self.dtf = DatetimeTickFormatter(years="%Y")
 
     def setNoDataValue(self, noData=None):
-
+        ''' Set the no data value '''
         if noData is not None:
             self.noData = noData
         else:
@@ -102,6 +120,7 @@ class pointInspector():
         return xc, yc
 
     def _imgOpts(self, component, **kwargs):
+        ''' Return a copy of the default image options '''
         opts = defaultImgOpts[component].copy()
         for key in kwargs:
             if key in opts:
@@ -109,6 +128,7 @@ class pointInspector():
         return opts
 
     def _plotOpts(self, component, **kwargs):
+        ''' Return a copy of the default plot options '''
         opts = defaultPlotOpts[component].copy()
         for key in kwargs:
             # print(key,opts)
@@ -116,10 +136,9 @@ class pointInspector():
                 opts[key] = kwargs[key]
         if 'plotTitle' in kwargs:
             opts['title'] = kwargs['plotTitle']
-        # print(component, opts)
         return opts
 
-    def view(self, component='vv', mapTitle=None, **kwargs):
+    def view(self, component='vv', mapTitle=None, ncols=1, **kwargs):
         ''' Setup and return plot '''
         self.component = component
         self.setNoDataValue(None)
@@ -128,19 +147,21 @@ class pointInspector():
         # Default titles
         if mapTitle is None:
             mapTitle = component
-        #
+        # Setup the image plot.
         img = self.xArray.sel(component=self.component,
                               time=self.bounds['maxt'])
         imgPlot = img.hvplot.image(rasterize=True, aspect='equal',
                                    title=mapTitle).opts(
             active_tools=['point_draw'], **self.imgOptions)
-
+        # Setup up the time series plot
         points = hv.Points(([self.xc], [self.yc]),
                            ).opts(size=6, color='red')
         pointer = hv.streams.PointDraw(source=points,
                                        data=points.columns(), num_objects=1)
+        # Create the dynamic map
         pointer_dmap = hv.DynamicMap(
             lambda data: self.extractData(data['x'][0], data['y'][0]),
             streams=[pointer]).opts(width=500)
-
-        return (imgPlot * points + pointer_dmap).opts(merge_tools=False)
+        # Return the result for display
+        return pn.panel((imgPlot * points +
+                         pointer_dmap).cols(ncols).opts(merge_tools=False))

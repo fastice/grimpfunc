@@ -18,10 +18,10 @@ productFamilyTemplate = {'topDir': None,
 
 displayDefaults = {'image': {'colorTable': None, 'minV': None, 'maxV': None,
                              'opacity': 1., 'invert': False},
-                   'sigma0': {'colorTable': 'Grays', 'minV': -20, 'maxV': 5,
-                              'opacity': 1., 'invert': False},
-                   'gamma0': {'colorTable': 'Grays', 'minV': -20, 'maxV': 5,
-                              'opacity': 1, 'invert': False},
+                   'sigma0': {'colorTable': 'Greys', 'minV': -20, 'maxV': 5,
+                              'opacity': 1., 'invert': True},
+                   'gamma0': {'colorTable': 'Greys', 'minV': -20, 'maxV': 5,
+                              'opacity': 1, 'invert': True},
                    'browse': {'colorTable': None, 'opacity': 0.7,
                               'invert': False},
                    'vv': {'colorTable': 'Blues', 'minV': 0, 'maxV': 1500,
@@ -41,7 +41,19 @@ class QgisGimpProjectSetup:
     """ An object for the class is used to collect all of the data needed
     to build a QGIS project"""
 
-    def __init__(self, defaultBasePath='.'):
+    def __init__(self, defaultBasePath=None):
+        '''
+        Init
+
+        Parameters
+        ----------
+        defaultBasePath : str, optional
+            If given, path to where produce files are located. If not urls
+            are used. The default is None.
+        Returns
+        -------
+        None.
+        '''
         self.productFamilies = {}
         self.setDefaultBasePath(defaultBasePath)
 
@@ -69,7 +81,8 @@ class QgisGimpProjectSetup:
 
     def productCategories(self):
         ''' Return list of product categories'''
-        categories = [y['category'] for x, y in self.productFamilies.items()]
+        categories = [x['category'] for x in self.productFamilies.values()
+                      if x['category'] is not None]
         return list(np.unique(categories))
 
     def updateProductFamily(self, productFamilyKey, **kwargs):
@@ -114,9 +127,9 @@ class QgisGimpProjectSetup:
         for productFamily in self.productFamilies:
             self.getProducts(self.productFamilies[productFamily], urls=urls)
 
-    def fileFound(self, urlFile, productFamily, band):
+    def fileFound(self, urlFile, productFamily):
+        ''' See if a url belongs to a product Family '''
         for x in ['productFilePrefix', 'fileType']:
-            # print(productFamily[x])
             if productFamily[x] not in urlFile:
                 return False
         return True
@@ -131,7 +144,7 @@ class QgisGimpProjectSetup:
             if band not in urlFile:
                 continue
             # Skip if prefix (e.g., S1_bks) or type (tif) not correct
-            if not self.fileFound(urlFile, productFamily, band):
+            if not self.fileFound(urlFile, productFamily):
                 continue  # Skip this url if no match
             # Passed all tests, so add to list
             option = ''
@@ -155,6 +168,7 @@ class QgisGimpProjectSetup:
                                    productFamily['productFilePrefix'],
                                    f'*{band}*.{productFamily["fileType"]}'])
                 productFamily['products'][band] += sorted(glob.glob(myPath))
+                # print(myPath,'\n',productFamily)
             else:
                 foundUrls = self.filterUrls(urls, band, productFamily)
                 if len(foundUrls) > 0:
