@@ -67,12 +67,11 @@ class boxPicker():
 
     def plotMap(self, show=True):
         ''' Plot the map'''
-        da = rioxarray.open_rasterio(self.mapUrl, overview_level=3, parse_coordinates=True,
-                                     chunks=dict(band=1, y=512, x=512), #dict(band=1, y="auto", x=-1),
+        da = rioxarray.open_rasterio(self.mapUrl, overview_level=3,
+                                     parse_coordinates=True,
+                                     chunks=dict(band=1, y=512, x=512),
                                      masked=False).squeeze('band')
-        da
-        da = da.rename(dict(x='easting', y='northing'))
-        img = da.hvplot.image(rasterize=True, cmap='gray',
+        img = da.hvplot.image(rasterize=True, cmap='gray', x='x', y='y',
                               aspect='equal', frame_width=400,
                               title=os.path.basename(self.mapUrl)
                               ).opts(active_tools=['box_select'])
