@@ -75,7 +75,13 @@ class pointInspector():
 
     def setData(self, xArray):
         ''' Setup internal refs to xarray along with bounds and center '''
-        self.xArray = xArray
+        variables = list(xArray.keys())
+        # This is a hack to accomodate rioxarray 3 and 4.
+        # In 3 variables are just the data, but in 4 spatial_ref is included
+        # Note there is an assumption that there is only 1 data variable
+        if 'spatial_ref' in xArray:
+            variables.remove('spatial_ref')
+        self.xArray = xArray[variables[0]].to_dataset()
         self.bounds = self.productBounds(xArray)
         self.xc, self.yc = self.centerPoint()
 
