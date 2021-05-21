@@ -67,7 +67,7 @@ class pointInspector():
         # Assumes data set has one var and possible a spatial_ref
         # This step avoids using the spatial ref
         names = list(self.xArray.keys())
-        if 'spatial_ref' in self.xArray:
+        if 'spatial_ref' in names:
             names.remove('spatial_ref')
         self.name = names[0]
         # print(self.name)
