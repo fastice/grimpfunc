@@ -64,6 +64,13 @@ class pointInspector():
         self.component = component
         self.setNoDataValue(noData=noData)
         self.dtf = DatetimeTickFormatter(years="%Y")
+        # Assumes data set has one var and possible a spatial_ref
+        # This step avoids using the spatial ref
+        names = list(self.xArray.keys())
+        if 'spatial_ref' in self.xArray:
+            names.remove('spatial_ref')
+        self.name = names[0]
+        # print(self.name)
 
     def setNoDataValue(self, noData=None):
         ''' Set the no data value '''
@@ -75,13 +82,7 @@ class pointInspector():
 
     def setData(self, xArray):
         ''' Setup internal refs to xarray along with bounds and center '''
-        variables = list(xArray.keys())
-        # This is a hack to accomodate rioxarray 3 and 4.
-        # In 3 variables are just the data, but in 4 spatial_ref is included
-        # Note there is an assumption that there is only 1 data variable
-        if 'spatial_ref' in xArray:
-            variables.remove('spatial_ref')
-        self.xArray = xArray[variables[0]].to_dataset()
+        self.xArray = xArray
         self.bounds = self.productBounds(xArray)
         self.xc, self.yc = self.centerPoint()
 
@@ -101,9 +102,8 @@ class pointInspector():
     def extractData(self, x, y, **kwargs):
         ''' Plot the time series, filtering out no data values '''
         # get data and time values
-        name = list(self.xArray.keys())[0]
         vOrig = self.xArray.sel(component=self.component).sel(
-            x=x, y=y, method='nearest')[name].values.flatten()
+            x=x, y=y, method='nearest')[self.name].values.flatten()
         tOrig = self.xArray.time.values.flatten()
         t, v = self._removeNoData(tOrig, vOrig)
         # Plot points and lines- options need some work
@@ -154,8 +154,8 @@ class pointInspector():
         if mapTitle is None:
             mapTitle = component
         # Setup the image plot.
-        img = self.xArray.sel(component=self.component,
-                              time=self.bounds['maxt'])
+        img = self.xArray[self.name].sel(component=self.component,
+                                         time=self.bounds['maxt'])
         imgPlot = img.hvplot.image(rasterize=True, aspect='equal',
                                    title=mapTitle).opts(
             active_tools=['point_draw'], **self.imgOptions)
