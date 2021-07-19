@@ -96,9 +96,12 @@ class QgisGimpProject:
                 first = False
                 self._checkFirstLayerOfLastGroup(child)
             else:
-                self.root.findLayer(
-                    child.layer().id()).setItemVisibilityChecked(True)
-                return
+                myLayer = self.root.findLayer(child.layer().id())
+                # Set first no vector layer
+                if myLayer.layer().type() != qc.QgsMapLayerType.VectorLayer:
+                    print(myLayer.layer().type())
+                    myLayer.setItemVisibilityChecked(True)
+                    return
 
     def _productCount(self):
         ''' Get total number of products included in project '''

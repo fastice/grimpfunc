@@ -35,7 +35,8 @@ class NASALogin(param.Parameterized):
     netrcFile = os.path.expanduser('~/.netrc')
 
     def __init__(self, cookieFile='.gimp_download_cookiejar.txt',
-                 cookiePath='~'):
+                 cookiePath='~',
+                 requestPath='https://daacdata.apps.nsidc.org/pub/DATASETS/'):
         '''
         Init, used to add cookie keywords
         Parameters
@@ -49,6 +50,7 @@ class NASALogin(param.Parameterized):
         -------
         '''
         super().__init__()
+        self.requestPath = requestPath
         # setup for password widget
         self.cookie_jar_path = os.path.expanduser(f'{cookiePath}/{cookieFile}')
 
@@ -134,7 +136,7 @@ class NASALogin(param.Parameterized):
             Whether new cookie successful.
         '''
         # Start by prompting user to input their credentials
-        requestPath = 'https://daacdata.apps.nsidc.org/pub/DATASETS/'
+        requestPath = self.requestPath
         new_username = self.username
         new_password = self.password
         user_pass = base64.b64encode(

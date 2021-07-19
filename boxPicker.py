@@ -69,7 +69,7 @@ class boxPicker():
         ''' Plot the map'''
         da = rioxarray.open_rasterio(self.mapUrl, overview_level=3,
                                      parse_coordinates=True,
-                                     chunks=dict(band=1, y='auto', x=-1),
+                                     chunks=dict(band=1, y=512, x=512),
                                      masked=False).squeeze('band')
         img = da.hvplot.image(rasterize=True, cmap='gray', x='x', y='y',
                               aspect='equal', frame_width=400,
