@@ -55,7 +55,7 @@ class boxPicker():
 
     def _getDefaultMap(self):
         ''' Get the latest version of a in image map '''
-        version = 3
+        version = 4
         # Increment version if not found
         for i in range(0, 5):
             urls = gimp.get_urls('NSIDC-0723', str(int(version) + i),

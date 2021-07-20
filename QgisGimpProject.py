@@ -15,10 +15,13 @@ try:
     import qgis.gui as qg
     from qgis.PyQt.QtGui import QColor
 except Exception:
-    # Try anaconda path
+    # Try anaconda path if not in the default path
     try:
-        qgisPath = '/'.join(sys.executable.split('/')[0:-2]) + \
-            '/share/qgis/python'
+        envName = os.environ["CONDA_DEFAULT_ENV"]
+        qgisPath = os.path.expanduser(
+            f'~/anaconda3/envs/{envName}/share/qgis/python')
+        #qgisPath = '/'.join(sys.executable.split('/')[0:-2]) + \
+        #    '/share/qgis/python'
         print(f'Adding {qgisPath} to sys.path')
         sys.path.append(qgisPath)
         import qgis.core as qc
@@ -31,7 +34,7 @@ except Exception:
             'a Python Console (under the Plugins menu) and then doing a\n'
             '\033[1m\timport sys\033[0m \n followed by a \n'
             '\033[1m\tprint(sys.path)\033[0m\n to find the path with:\n'
-            '\t\033[1m\033[3m/.../qgis/python\033[0m\033[0m\n'
+            '\t\033[1m\033[3m/../qgis/python\033[0m\033[0m\n'
             'Either modify the sys.path.append line with this path in'
             'QgisGimpProject.py\nor update your python path')
         sys.exit()
