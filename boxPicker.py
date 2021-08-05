@@ -22,7 +22,8 @@ boxDefault = {'minx': -243500, 'miny': -2295000, 'maxx': -149000,
 class boxPicker():
     ''' Pick a box on a SAR map '''
 
-    def __init__(self, mapUrl=None, bbox=boxDefault, boxFile=None):
+    def __init__(self, mapUrl=None, bbox=boxDefault, boxFile=None,
+                 localTiff=None):
         '''
         Init routine for a boxPicker
 

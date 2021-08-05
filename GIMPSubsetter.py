@@ -38,13 +38,46 @@ class GIMPSubsetter():
     ''' Class to open remote data set and create a rioxarry. The result can
     then be cropped to create a subset, which can then be saved to a netcdf'''
 
-    def __init__(self, bands=['vv'], urls=None):
+    def __init__(self, bands=['vv'], urls=None, tiffs=None):
         self.urls = urls
+        self.tiffs = tiffs
         self.DA = None
         self.dataArrays = None
         self.subset = None
         self.bands = self._checkBands(bands)
 
+
+    @dask.delayed
+    def lazy_openTiff(self, tiff, masked=False, productType='velocity'):
+        ''' Lazy open of a single url '''
+        # print(href)d
+        if productType not in productTypeDict.keys():
+            print(f'Warning in valid productType: {productType}')
+            return None
+        das = []
+        for band in self.bands:
+            template = bandsDict[band]['template']
+            filename = tiff.split('/')[-1]
+            tmp = tiff.split('/')[-3].replace('Vel-','')
+            date1 = tmp.split('.')[0]
+            date2 = tmp.split('.')[1]
+            bandTiff = tiff.replace(template, band)
+            # create rioxarry
+            da = rioxarray.open_rasterio(bandTiff, lock=False,
+                                         default_name=bandsDict[band]['name'],
+                                         chunks=dict(band=1, y=512, x=512),
+                                         masked=masked).rename(
+                                             band='component')
+            da['component'] = [band]
+            da['time'] = pd.to_datetime(date1) + (pd.to_datetime(date2) - pd.to_datetime(date1) )*0.5
+            da['name'] = filename
+            da['_FillValue'] = bandsDict[band]['noData']
+            das.append(da)
+        # Concatenate bands (components)
+        return xr.concat(das, dim='component', join='override',
+                         combine_attrs='drop')
+    
+    
     @dask.delayed
     def lazy_open(self, url, masked=False, productType='velocity'):
         ''' Lazy open of a single url '''
@@ -102,8 +135,12 @@ class GIMPSubsetter():
         # if psutil.cpu_count() > 15: num_threads = 12
         self.bands = self._checkBands(bands)
         with dask.config.set({'scheduler': 'threads', 'num_workers': 8}):
-            self.dataArrays = dask.compute(*[self.lazy_open(url, masked=False)
-                                             for url in self.urls])
+            if self.urls is not None:
+                self.dataArrays = dask.compute(*[self.lazy_open(url, masked=False)
+                                                 for url in self.urls])
+            else:
+                self.dataArrays = dask.compute(*[self.lazy_openTiff(tiff, masked=False)
+                                                 for tiff in self.tiffs])
         # Concatenate along time dimensions
         self.DA = xr.concat(self.dataArrays, dim='time', join='override',
                             combine_attrs='drop')
