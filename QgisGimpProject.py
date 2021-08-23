@@ -20,7 +20,7 @@ except Exception:
         envName = os.environ["CONDA_DEFAULT_ENV"]
         qgisPath = os.path.expanduser(
             f'~/anaconda3/envs/{envName}/share/qgis/python')
-        #qgisPath = '/'.join(sys.executable.split('/')[0:-2]) + \
+        # qgisPath = '/'.join(sys.executable.split('/')[0:-2]) + \
         #    '/share/qgis/python'
         print(f'Adding {qgisPath} to sys.path')
         sys.path.append(qgisPath)

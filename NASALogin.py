@@ -53,6 +53,9 @@ class NASALogin(param.Parameterized):
         self.requestPath = requestPath
         # setup for password widget
         self.cookie_jar_path = os.path.expanduser(f'{cookiePath}/{cookieFile}')
+        self.msg = ''
+        self.errorMsg = '                            '
+        self.updateStatusMessage()
 
     @param.depends('enterCredential', watch=True)
     def getCredentials(self):
@@ -72,7 +75,8 @@ class NASALogin(param.Parameterized):
             count += 1
         if self.check_cookie_is_logged_in(self.cookie_jar):
             self.updateNetrc()  # Create/update .netrc file
-        self.loginStatus()
+        self.updateStatusMessage()
+        self.error()
 
     def resetCookie(self):
         ''' Remove cooking file - for debugging'''
@@ -90,6 +94,7 @@ class NASALogin(param.Parameterized):
 
         '''
         if self.cookie_jar is None:
+            self.errMsg = "No cookie jar"
             return False
         # File we know is valid, used to validate cookie
         # Apply custom Redirect Handler
@@ -104,6 +109,7 @@ class NASALogin(param.Parameterized):
             resp_code = response.getcode()
             # Make sure we're logged in
             if not self.check_cookie_is_logged_in(self.cookie_jar):
+                self.errorMsg = 'Not logged in, try again'
                 return False
             # Save cookiejar
             self.cookie_jar.save(self.cookie_jar_path)
@@ -112,19 +118,20 @@ class NASALogin(param.Parameterized):
         except HTTPError:
             # If we get this error, again, it likely means the user has not
             # agreed to current EULA
-            print("\nIMPORTANT: ")
-            print("User appears to lack permissions to download data from "
-                  "the Earthdata Datapool.")
-            print("\n\nNew users: you must first have an account at "
-                  "Earthdata https://urs.earthdata.nasa.gov")
-            exit(-1)
+            self.errorMsg = "\nIMPORTANT: User appears to lack permissions" \
+                            " to download data from the Earthdata Datapool." \
+                            "\n\nNew users must have an account at " \
+                            "Earthdata https://urs.earthdata.nasa.gov"
+            return False
         # These return codes indicate the USER has not been approved to
         # download the data
         if resp_code in (300, 301, 302, 303):
-            print(f"Redirect ({resp_code}) occured, invalid cookie value!")
+            self.errorMsg = \
+                f"Redirect ({resp_code}) occured, invalid cookie value!"
             return False
         # These are successes!
         if resp_code in (200, 307):
+            self.errorMsg = ''
             return True
         return False
 
@@ -135,6 +142,7 @@ class NASALogin(param.Parameterized):
         bool
             Whether new cookie successful.
         '''
+        self.errorMsg = 'XXXX'
         # Start by prompting user to input their credentials
         requestPath = self.requestPath
         new_username = self.username
@@ -150,21 +158,16 @@ class NASALogin(param.Parameterized):
                           headers={"Authorization": f"Basic {user_pass}"})
         # Watch out cookie rejection!
         try:
-            response = opener.open(request)
+            _ = opener.open(request)
         except HTTPError as e:
+            self.errorMsg = "\nError: problem obtaining a download cookie:" \
+                f"{e.code}"
             if e.code == 401:
                 return False
-            else:
-                # If an error happens here, the user most likely has not
-                # confirmed EULA.
-                print("\nIMPORTANT: There was an error obtaining a download "
-                      "cookie!")
-                exit(-1)
         except URLError:
-            print("\nIMPORTANT: There was a problem communicating with URS, "
-                  "unable to obtain cookie. ")
-            print("Try cookie generation later.")
-            exit(-1)
+            self.errorMsg = "Error: Problem communicating with URS," \
+                "unable to obtain cookie. Try cookie generation later."
+            return False
         # Did we get a cookie?
         if self.check_cookie_is_logged_in(self.cookie_jar):
             # COOKIE SUCCESS!
@@ -172,10 +175,9 @@ class NASALogin(param.Parameterized):
             return True
         # if we aren't successful generating the cookie, nothing will work.
         # Stop here!
-        print("WARNING: Could not generate new cookie! Cannot proceed. "
-              "Please try Username and Password again.")
-        print(f"Response was {response.getcode()}.")
-        exit(-1)
+        self.errorMsg = "Error: Could not generate new cookie! " \
+            "Please try Username and Password again."
+        return False
 
     def check_cookie_is_logged_in(self, cj):
         '''
@@ -238,20 +240,28 @@ class NASALogin(param.Parameterized):
         # Get cookie on first try, but not each time view is called
         return text
 
-    def loginStatus(self):
-        '''Check login status and print an appropriate message '''
+    def updateStatusMessage(self):
         if self.check_cookie_is_logged_in(self.cookie_jar):
             if os.path.exists(self.netrcFile):
-                msg = '### Status: Logged in\n####Continue'
-                style = {'color': 'blue'}
+                self.msg = '### Status: Logged in\n####Continue'
+                self.style = {'color': 'blue'}
             else:
-                msg = '### Status: Enter password to create .netrc'
-                style = {'color': 'orange'}
+                self.msg = '### Status: Enter password to create .netrc'
+                self.style = {'color': 'orange'}
         else:
-            msg = '### Status: Not logged in\nEnter credentials'
-            style = {'color': 'red'}
-        # pn.pane.Markdown(msg, style=style)
-        return pn.pane.Markdown(msg, style=style)
+            self.msg = '### Status: Not logged in\nEnter credentials'
+            self.style = {'color': 'red'}
+
+    def loginStatus(self):
+        '''Check login status and print an appropriate message '''
+        # self.updateStatusMessage()
+        return pn.pane.Markdown(self.msg, style=self.style)
+
+    def error(self):
+        '''Check login status and print an appropriate message '''
+        # self.updateStatusMessage()
+        return pn.pane.Markdown(self.errorMsg, style={'color': 'red'},
+                                width=250)
 
     def updateNetrc(self):
         ''' Update or create new ~/.netrc to include user name and passwd '''
@@ -299,4 +309,5 @@ class NASALogin(param.Parameterized):
              'enterCredential': pn.widgets.Button(name='Enter Credentials')}
         widgets = pn.panel(
             self.param, widgets=widgetParams, name='Earth Data Login')
-        return pn.Row(self.loginInstructions, widgets, self.loginStatus)
+        return pn.Row(self.loginInstructions, widgets,
+                      pn.Column(self.loginStatus, self.error))

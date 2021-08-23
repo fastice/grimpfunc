@@ -167,6 +167,7 @@ class QgisGimpProjectSetup:
                                    productFamily['topDir'],
                                    productFamily['productFilePrefix'],
                                    f'*{band}*.{productFamily["fileType"]}'])
+                # print(myPath)
                 productFamily['products'][band] += sorted(glob.glob(myPath))
                 # print(myPath,'\n',productFamily)
             else:
