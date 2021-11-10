@@ -65,7 +65,7 @@ class GIMPSubsetter():
             # create rioxarry
             da = rioxarray.open_rasterio(bandTiff, lock=False,
                                          default_name=bandsDict[band]['name'],
-                                         chunks=dict(band=1, y=512, x=512),
+                                         chunks=dict(band=1, y=512*4, x=512*4),
                                          masked=masked).rename(
                                              band='component')
             da['component'] = [band]
@@ -97,7 +97,7 @@ class GIMPSubsetter():
             # create rioxarry
             da = rioxarray.open_rasterio(vsicurl, lock=False,
                                          default_name=bandsDict[band]['name'],
-                                         chunks=dict(band=1, y=512, x=512),
+                                         chunks=dict(band=1, y=512*4, x=512*4),
                                          masked=masked).rename(
                                              band='component')
             da['component'] = [band]
