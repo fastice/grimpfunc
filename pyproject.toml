@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "gimpfunc"
+version = "0.0.1"
+description = "SAR processing on the Cloud"
+authors = ["Ian Joughin <ian@apl.washington.edu>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/fastice/gimpfunc"
+repository = "https://github.com/fastice/gimpfunc"
+keywords = ["SAR", "NSIDC", "Holoviz"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+dask = "^2021"
+pandas = "^1.3"
+progressbar2 = "^3"
+holoviews = "^1.14"
+hvplot = "^0.7"
+numpy = "^1.19"
+panel = "^0.12"
+requests = "^2"
+rioxarray = "^0.7"
+xarray = "^0.19"
+# plotting/graphics libraries optional
+qgis = { version = "^3.18", optional = true }
+
+[tool.poetry.dev-dependencies]
+ipython = "*"
+
+[tool.poetry.extras]
+qgis = ["qgis"]
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "semver"
+
+[build-system]
+requires = ["poetry>=1.0"]
+build-backend = "poetry.masonry.api"
