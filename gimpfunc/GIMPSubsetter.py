@@ -12,10 +12,12 @@ import os
 import dask
 import pandas as pd
 # from dask.diagnostics import ProgressBar
-
 # ProgressBar().register()
+import stackstac
+import datetime
+import numpy as np
 
-CHUNKSIZE = 512*8
+CHUNKSIZE = 1024
 
 productTypeDict = {'velocity': {'bands': ['vv', 'vx', 'vy'], 'template': 'vv'},
                    'image': {'bands': ['image'], 'template': 'image'},
@@ -23,16 +25,17 @@ productTypeDict = {'velocity': {'bands': ['vv', 'vx', 'vy'], 'template': 'vv'},
                    'sigma0': {'bands': ['sigma0'], 'template': 'sigma0'}}
 
 # valid bands and the reference url type
-bandsDict = {'vv': {'template': 'vv', 'noData': -1., 'name': 'velocity'},
+# NOTE NSIDC-0481: TSX Individual Glacier Velocity resolution=100
+# Other resolutions = 200m
+bandsDict = {'vv': {'template': 'vv', 'noData': -1.,'name': 'velocity'},
              'vx': {'template': 'vv', 'noData': -2.e9, 'name': 'velocity'},
              'vy': {'template': 'vv', 'noData': -2.e9, 'name': 'velocity'},
              'ex': {'template': 'vv', 'noData': -1., 'name': 'velocity'},
              'ey': {'template': 'vv', 'noData': -1., 'name': 'velocity'},
              'dT': {'template': 'vv', 'noData': -2.e9, 'name': 'velocity'},
-             'image': {'template': 'image', 'noData': 0, 'name': 'image'},
-             'gamma0': {'template': 'gamma0', 'noData': -30.,
-                        'name': 'gamma0'},
-             'sigma0': {'template': 'sigma0', 'noData': -30., 'name': 'sigma0'}
+             'image': {'template': 'image', 'noData': 0, 'dtype':'uint8', 'resolution':25, 'name': 'image'},
+             'gamma0': {'template': 'gamma0', 'noData': -30., 'dtype':'float32', 'resolution':50, 'name': 'gamma0'},
+             'sigma0': {'template': 'sigma0', 'noData': -30., 'dtype':'float32', 'resolution':50, 'name': 'sigma0'}
              }
 
 
@@ -49,6 +52,57 @@ class GIMPSubsetter():
         self.bands = self._checkBands(bands)
 
 
+    def construct_stac_items(self, URLs):
+        ''' construct STAC-style dictionaries of CMR urls for stackstac '''
+        ITEMS = []
+        for url in URLs:
+            item = {'id': os.path.basename(url), 
+                    'collection': url.split('/')[-3],
+                    'properties': {'datetime': datetime.datetime.strptime(url.split('/')[-2], '%Y.%m.%d').isoformat()}, 
+                    'assets': {},
+                    'bbox': [-87.00998, 58.80463, 5.72895, 83.568293],
+                   }
+            for band in self.bands:
+                url.replace('vv', band)
+                item['assets'][band] = {'href': url, 'type': 'application/x-geotiff'}
+            ITEMS.append(item)
+            
+        return ITEMS
+        
+        
+    def lazy_open_stackstac(self, items):
+        ''' return stackstac xarray dataarray '''        
+        col = items[0]['collection']
+        if 'NSIDC-0723' in col:
+            band = self.bands[0]
+            resolution = bandsDict[band]['resolution']
+            dtype = bandsDict[band]['dtype']
+            fill_value = bandsDict[band]['noData']
+            bounds = [-626000.0, -3356000.0, 850000.0, -695000.0] # NOTE: does not apply to TSX
+        # does not work well w/ TSX since all bounds are differet
+        # would need to open first asset in items to get bounds
+        #elif 'NSIDC-0481' in col:
+        #    resolution = 100
+        else:
+            dtype='float32'
+            fill_value=np.nan
+            resolution = 200
+            bounds = [-659100.0, -3379100.0, 857900.0, -639100.0]
+        
+        da = stackstac.stack(items,
+                            assets=self.bands,
+                            epsg=3413, 
+                            resolution=resolution, 
+                            fill_value=fill_value,
+                            dtype=dtype,
+                            chunksize=CHUNKSIZE,
+                            bounds=bounds,
+                            )
+        da = da.rename(band='component')
+        
+        return da
+        
+        
     @dask.delayed
     def lazy_openTiff(self, tiff, masked=False, productType='velocity'):
         ''' Lazy open of a single url '''
@@ -121,7 +175,7 @@ class GIMPSubsetter():
     def _checkBands(self, bands):
         ''' Check valid band types '''
         if bands is None and self.bands is not None:
-            print(bands, self.bands)
+            #print(bands, self.bands)
             return self.bands
         for band in bands:
             if band not in bandsDict:
@@ -130,6 +184,13 @@ class GIMPSubsetter():
                 bands.remove(band)
         return bands
 
+    def loadStackStac(self, bands=None):
+        ''' construct dataarray with stackstac '''
+        self.bands = self._checkBands(bands)
+        items = self.construct_stac_items(self.urls)
+        self.DA = self.lazy_open_stackstac(items)
+        
+    
     def loadDataArray(self, bands=None):
         ''' Load and concatenate arrays to create a rioxArray with coordinates
         time, component, y, x'''
@@ -149,7 +210,7 @@ class GIMPSubsetter():
 
     def subSetData(self, bbox):
         ''' Subset dataArray with
-        bbox = {'minx': minx, 'miny': miny, 'maxx': maxx, 'miny': miny}
+        bbox = {'minx': minx, 'miny': miny, 'maxx': maxx, 'maxy': maxy}
         '''
         self.subset = self.DA.rio.clip_box(**bbox)
         return self.subset
@@ -159,7 +220,7 @@ class GIMPSubsetter():
         self.subSetToNetCDF(cdfFile, bbox=self.getBounds(),
                             numWorkers=numWorkers)
 
-    def subSetToNetCDF(self, cdfFile, bbox=None, numWorkers=4):
+    def subSetToNetCDF(self, cdfFile, bbox=None, numWorkers=1):
         ''' Write existing subset or update subset. Will append .nc to cdfFile
         if not already present.
         '''

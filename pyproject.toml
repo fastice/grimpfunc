@@ -16,10 +16,11 @@ pandas = "^1"
 progressbar2 = "^3"
 holoviews = "^1"
 hvplot = "^0"
-numpy = "^1"
+numpy = "^1.20.0"
 panel = "^0"
 requests = "^2"
 rioxarray = "^0"
+stackstac = "^0.2"
 xarray = "^0"
 # NOTE: qgis not on pypi, just conda-forge
 #qgis = { version = "3.18", optional = true }
