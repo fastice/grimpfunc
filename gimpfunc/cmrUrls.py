@@ -24,10 +24,12 @@ productOptions = {'NSIDC-0642': ['termini'],
                   'NSIDC-0725': velocityOptions,
                   'NSIDC-0727': velocityOptions,
                   'NSIDC-0731': velocityOptions,
+                  'NSIDC-0766': velocityOptions,
                   'NSIDC-0481': velocityOptions[1:]}
 # Current versions, if versions updated at DAAC, will try later version
 versions = {'NSIDC-0723': '4', 'NSIDC-0725': '3', 'NSIDC-0727': '3',
-            'NSIDC-0731': '3', 'NSIDC-0642': '1', 'NSIDC-0481': '3'}
+            'NSIDC-0731': '3', 'NSIDC-0642': '2', 'NSIDC-0481': '3',
+            'NSIDC-0766': '1'}
 defaultProduct = 'NSIDC-0723'
 
 productGroups = {'browse': ['browse'],
