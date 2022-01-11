@@ -303,6 +303,7 @@ class cmrUrls(param.Parameterized):
                  '- **NSIDC-0725:** Annual Velocity<br/>',
                  '- **NSIDC-0727:** Quarterly Velocity<br/>',
                  '- **NSIDC-0731:** Monthly Velocity<br/>',
+                 '- **NSIDC-0766:** 6/12-Day Velocity<br/>',
                  '- **NSIDC-0481:** TSX Individual Glacier Velocity']
         searchWidgets = {'product': pn.widgets.RadioButtonGroup,
                          'productFilter': pn.widgets.Select,
