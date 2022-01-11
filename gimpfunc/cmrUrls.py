@@ -20,7 +20,7 @@ products = ['NSIDC-0642',
 
 velocityOptions = ['browse', 'speed', 'velocity', 'velocity+errors', 'all']
 productOptions = {'NSIDC-0642': ['termini'],
-                  'NSIDC-0723': ['gamma0', 'sigma0','image'],
+                  'NSIDC-0723': ['gamma0', 'sigma0', 'image'],
                   'NSIDC-0725': velocityOptions,
                   'NSIDC-0727': velocityOptions,
                   'NSIDC-0731': velocityOptions,
