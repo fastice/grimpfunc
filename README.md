@@ -6,4 +6,4 @@ For examples of how this library is used refer to notebooks in https://github.co
 
 ## Installation
 
-In an existing python virtual environment: `pip install git+https://github.com/scottyhq/gimpfunc.git@master`
+In an existing python virtual environment: `pip install git+https://github.com/fastice/gimpfunc.git@master`
