@@ -17,7 +17,7 @@ import stackstac
 import datetime
 import numpy as np
 
-CHUNKSIZE = 1024
+CHUNKSIZE = 512
 
 productTypeDict = {'velocity': {'bands': ['vv', 'vx', 'vy'], 'template': 'vv'},
                    'image': {'bands': ['image'], 'template': 'image'},

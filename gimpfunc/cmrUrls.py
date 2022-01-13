@@ -18,7 +18,10 @@ products = ['NSIDC-0642',
             'NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731', 'NSIDC-0766',
             'NSIDC-0481']
 
+velocityMosaics = ['NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731', 'NSIDC-0766']
+
 velocityOptions = ['browse', 'speed', 'velocity', 'velocity+errors', 'all']
+
 productOptions = {'NSIDC-0642': ['termini'],
                   'NSIDC-0723': ['gamma0', 'sigma0', 'image'],
                   'NSIDC-0725': velocityOptions,
@@ -92,7 +95,7 @@ class cmrUrls(param.Parameterized):
         # Only 1 product saved
         if self.mode == 'subsetter':
             self.param.Clear.precedence = -1
-            for prod in ['NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731']:
+            for prod in velocityMosaics:
                 productOptions[prod] = ['-']
             productOptions['NSIDC-0481'] = self.TSXBoxNames()
             for x in productOptions['NSIDC-0481']:
