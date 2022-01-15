@@ -322,7 +322,7 @@ class cmrUrls(param.Parameterized):
             pn.pane.Markdown(
                 f'''**Product Key: **<br/>{''.join(names[0:3])}'''),
             pn.pane.Markdown(f'''<br/>{''.join(names[3:])}'''))
-        leftWidth = 600
+        leftWidth = len(names) * 100
         self.inputs = pn.Param(self.param,
                                widgets=searchWidgets,
                                name='Select Product & Parameters',
