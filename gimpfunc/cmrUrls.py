@@ -34,7 +34,7 @@ versions = {'NSIDC-0723': '4', 'NSIDC-0725': '3', 'NSIDC-0727': '3',
             'NSIDC-0731': '3', 'NSIDC-0642': '2', 'NSIDC-0766': '1',
             'NSIDC-0481': '3',
             }
-defaultProduct = 'NSIDC-0723'
+defaultProduct = 'NSIDC-0725'
 
 productGroups = {'browse': ['browse'],
                  'speed': ['vv'], '-': ['vv'],
@@ -93,15 +93,18 @@ class cmrUrls(param.Parameterized):
         self.mode = mode.lower()
         # Subsetter mode pick by 481 products by box name and
         # Only 1 product saved
-        if self.mode == 'subsetter':
+        if self.mode in ['subsetter', 'nisar']:
             self.param.Clear.precedence = -1
             for prod in velocityMosaics:
                 productOptions[prod] = ['-']
-            productOptions['NSIDC-0481'] = self.TSXBoxNames()
             for x in productOptions['NSIDC-0481']:
                 productGroups[x] = ['vv']
                 fileTypes[x] = ['.tif']
-            self.param.product.objects = self.param.product.objects[1:]
+            if self.mode == 'subsetter':
+                productOptions['NSIDC-0481'] = self.TSXBoxNames()
+                self.param.product.objects = self.param.product.objects[1:]
+            else:
+                self.param.product.objects = self.param.product.objects[2:-1]
         # Init variables
         self.first = True
         self.cogs = []
@@ -151,13 +154,13 @@ class cmrUrls(param.Parameterized):
                                     columns=['date', 'product'])
 
     @param.depends('Search', watch=True)
-    def findData(self):
+    def findData(self, initSearch=False):
         '''Search NASA/NSIDC Catalog for dashboard parameters'''
         # Return if not a button push (e.g., first)
-        if not self.Search:
+        if not self.Search and not initSearch:
             return
         #
-        if self.mode == 'subsetter':  # Start fresh for each search
+        if self.mode in ['subsetter', 'nisar']:  # Start fresh for each search
             self.resetData()
         #
         newUrls = self.getURLS()
@@ -315,6 +318,8 @@ class cmrUrls(param.Parameterized):
                          'Search': pn.widgets.Button}
         if self.mode == 'subsetter':
             names = names[1:]
+        elif self.mode == 'nisar':
+            names = names[2:-1]
         # Clear precedence ensures this won't plot in subsetter mode
         searchWidgets['Clear'] = pn.widgets.Button
         #
@@ -329,7 +334,7 @@ class cmrUrls(param.Parameterized):
                                width=leftWidth)
 
         panels = [directionsPanel, self.inputs]
-        if self.mode != 'subsetter':
+        if self.mode not in ['subsetter', 'nisar']:
             boundsPanel = pn.Column(pn.Row(self.LatMin, self.LatMax),
                                     pn.Row(self.LonMin, self.LonMax))
             boundsLabel = pn.pane.Markdown('###Search Area (NSIDC-481 only)')
@@ -339,5 +344,9 @@ class cmrUrls(param.Parameterized):
                       pn.Column(self.result_view, self.displayProductCount,
                                 self.debugMessage))
 
-    def panel(self):
+    def initialSearch(self):
+        ''' This will display the panel and do an initial search '''
+        self.setProductOptions()
+        self.param.productFilter.objects = productOptions[self.product]
+        self.findData(initSearch=True)
         return self.view()
