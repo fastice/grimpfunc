@@ -66,9 +66,9 @@ class GIMPSubsetter():
                     'assets': {},
                     'bbox': [-87.00998, 58.80463, 5.72895, 83.568293]
                     }
-            for band in self.bands:    
-                url = url.replace('vv', band)
-                item['assets'][band] = {'href': url,
+            for band in self.bands:
+                bandUrl = url.replace('vv', band)
+                item['assets'][band] = {'href': bandUrl,
                                         'type': 'application/x-geotiff'}
             ITEMS.append(item)
 
@@ -89,6 +89,7 @@ class GIMPSubsetter():
         # elif 'NSIDC-0481' in col:
         #    resolution = 100
         else:
+            print(items)
             dtype = 'float32'
             fill_value = np.nan
             resolution = 200
