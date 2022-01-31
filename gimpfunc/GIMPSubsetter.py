@@ -66,8 +66,8 @@ class GIMPSubsetter():
                     'assets': {},
                     'bbox': [-87.00998, 58.80463, 5.72895, 83.568293]
                     }
-            for band in self.bands:
-                url.replace('vv', band)
+            for band in self.bands:    
+                url = url.replace('vv', band)
                 item['assets'][band] = {'href': url,
                                         'type': 'application/x-geotiff'}
             ITEMS.append(item)
@@ -93,7 +93,6 @@ class GIMPSubsetter():
             fill_value = np.nan
             resolution = 200
             bounds = [-659100.0, -3379100.0, 857900.0, -639100.0]
-
         da = stackstac.stack(items,
                              assets=self.bands,
                              epsg=3413,
@@ -104,7 +103,6 @@ class GIMPSubsetter():
                              bounds=bounds
                              )
         da = da.rename(band='component')
-
         return da
 
     @dask.delayed

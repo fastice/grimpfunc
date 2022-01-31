@@ -130,14 +130,14 @@ class Flowlines():
         None.
 
         '''
-        self.bounds = {'minx': 1e9, 'miny': 1e9, 'maxx': -1e9, 'maxy': -1e9}
+        keysTemplate = ['minx', 'miny', 'maxx', 'maxy']
+        self.bounds = dict(zip(keysTemplate, [1e9, 1e9, -1e9, -1e9]))
         for fl in self.flowlines.values():
-
             values = np.around([np.min(fl['x']) - pad, np.min(fl['y']) - pad,
                                 np.max(fl['x']) + pad, np.max(fl['y']) + pad],
                                - 2)
-            self.bounds = self.mergeBounds(self.bounds, dict(zip(
-                self.bounds.keys(), values)))
+            newBounds = dict(zip(keysTemplate, values))
+            self.bounds = self.mergeBounds(self.bounds, newBounds)
 
     def mergeBounds(self, bounds1, bounds2):
         '''
@@ -152,11 +152,10 @@ class Flowlines():
             Merged box.
         '''
         merged = {}
-        for c in ['x', 'y']:
-            merged[f'min{c}'] = np.min([bounds1[f'min{c}'],
-                                        bounds2[f'min{c}']])
-            merged[f'max{c}'] = np.max([bounds1[f'max{c}'],
-                                        bounds2[f'max{c}']])
+        merged['minx'] = np.min([bounds1['minx'], bounds2['minx']])
+        merged['miny'] = np.min([bounds1['miny'], bounds2['miny']])
+        merged['maxx'] = np.max([bounds1['maxx'], bounds2['maxx']])
+        merged['maxy'] = np.max([bounds1['maxy'], bounds2['maxy']])
         return merged
 
     def _toKm(func):
