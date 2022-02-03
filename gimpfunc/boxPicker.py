@@ -14,6 +14,7 @@ import rioxarray
 import os
 import yaml
 import numpy as np
+import dask
 
 boxDefault = {'minx': -243500, 'miny': -2295000, 'maxx': -149000,
               'maxy': -2255000}
@@ -23,7 +24,7 @@ class boxPicker():
     ''' Pick a box on a SAR map '''
 
     def __init__(self, mapUrl=None, bbox=boxDefault, boxFile=None,
-                 localTiff=None):
+                 localTiff=None, numWorkers=4):
         '''
         Init routine for a boxPicker
 
@@ -53,7 +54,8 @@ class boxPicker():
             self.box = hv.streams.BoundsXY(bounds=tuple(bbox.values()))
         except Exception:
             self.box = hv.streams.BoundsXY(bounds=tuple(boxDefault.values()))
-
+        dask.config.set(num_workers=numWorkers)
+        
     def _getDefaultMap(self):
         ''' Get the latest version of a in image map '''
         version = 4

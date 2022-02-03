@@ -89,7 +89,6 @@ class GIMPSubsetter():
         # elif 'NSIDC-0481' in col:
         #    resolution = 100
         else:
-            print(items)
             dtype = 'float32'
             fill_value = np.nan
             resolution = 200

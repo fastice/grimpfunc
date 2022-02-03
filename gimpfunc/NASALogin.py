@@ -14,6 +14,7 @@ from urllib.error import HTTPError, URLError
 from http.cookiejar import MozillaCookieJar
 import param
 import panel as pn
+import time
 
 
 class NASALogin(param.Parameterized):
@@ -73,6 +74,7 @@ class NASALogin(param.Parameterized):
         while self.check_cookie() is False and count < 10:
             self.get_new_cookie()
             count += 1
+            time.sleep(0.1)
         if self.check_cookie_is_logged_in(self.cookie_jar):
             self.updateNetrc()  # Create/update .netrc file
         self.updateStatusMessage()
