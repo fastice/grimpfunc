@@ -9,20 +9,30 @@ import geopandas as gpd
 import numpy as np
 import functools
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
 
 class Flowlines():
     ''' Class to read and work with flowlines from shape files '''
     shapeParsers = {'felikson': 'parseFelikson'}
 
-    def __init__(self, shapefile=None, shapeFormat='felikson', length=None):
+    def __init__(self, shapefile=None, name=None, shapeFormat='felikson',
+                 length=None, epsg=3413, sourceEpsg=None):
         self.flowlines = {}
+        self.xforms = {}
+        self.name = name
+        self.setEpsg(epsg)
         if shapefile is not None:
             self.readShape(shapefile, shapeFormat=shapeFormat)
             self.truncate(None, length=length)
 
+    def setEpsg(self, epsg):
+        if epsg is str:
+            epsg = int(str)
+        self.epgs = epsg
+
     def readShape(self, shapefile, length=None, pad=10e3, reuse=False,
-                  shapeFormat='felikson'):
+                  shapeFormat='felikson', sourceEpsg=None):
         '''
         Read a flowline shape file and return a dict with entries:
         {index: {'x': [], 'y': [], 'd': []}
@@ -40,16 +50,23 @@ class Flowlines():
         shapeFormat : str, optional
             Specify the parser function for the shapefile. The default is
             'felikson'.
+        sourceEPSG : epsg of original data
+            For future modifications with other shape parsers
         Returns
         -------
         None.
-
         '''
         if not reuse:
             self.shapeTable = gpd.read_file(shapefile)
         self.flowlines = {}
         getattr(self, self.shapeParsers[shapeFormat])()
         self.computeBounds(pad=pad)
+
+    def flowlineIDs(self):
+        '''
+        Return a list with the flowline IDs (dict keys)
+        '''
+        return list(self.flowlines.keys())
 
     def parseFelikson(self):
         '''
@@ -241,7 +258,123 @@ class Flowlines():
         '''
         return self.distancem(index=index)
 
-    def plotFlowlineLocations(self, ax=plt, units='m', indices=None, **kwargs):
+    def plotGlacierName(self, ax=plt, units='m', index=None, first=True,
+                        xShift=0, yShift=0, **kwargs):
+        '''
+        Plot glacier name on map
+
+        Parameters
+        ----------
+        ax : matplot lib ax, optional
+            axsis for plot. The default is plt.
+        units : str, optional
+            Select units as 'm' or 'km'. The default is 'm'.
+        index : str, optional
+            index for flowline to locate label near. The default is None.
+        first : TYPE, optional
+            locate label at flowline start, ow at the end. The default is True.
+        xShift : number, optional
+            Amount to shift label in map units. The default is 0.
+        yShift : TYPE, optional
+            Amount to shift label in map units. The default is 0.
+        **kwargs : TYPE
+            DESCRIPTION.
+        Returns
+        -------
+        None.
+
+        '''
+        if not self.checkUnits(units):
+            return
+        #
+        x, y = getattr(self, f'xy{units}')(index=index)
+        if first:
+            xL, yL, hAlign = x[0], y[0], 'right'
+        else:
+            xL, yL, hAlign = x[-1], y[-1], 'left'
+        #
+        ax.text(xL + xShift, yL + yShift, self.name,
+                horizontalalignment=hAlign, **kwargs)
+
+    def extractPoint(self, distance, index, units='m'):
+        '''
+        Extract a point distance from start of flowline (nearest point)
+
+        Parameters
+        ----------
+        distance : distance in appropriate units
+            DESCRIPTION.
+        index : str
+            flowline id.
+        units : str, optional
+            Units 'm' or 'km'. The default is 'm'.
+        Returns
+        -------
+        x, y : coordinates of point.
+
+        '''
+        i = np.argmin(np.abs(getattr(self, f'distance{units}')(index=index) -
+                             distance))
+        #
+        x, y = getattr(self, f'xy{units}')(index=index)
+        return x[i], y[i]
+
+    def extractPoints(self, distance, indices=None, units='m'):
+        '''
+        Extract a point distance from start of flowines specified by None
+
+        Parameters
+        ----------
+        distance : distance in appropriate units
+            DESCRIPTION.
+        indces : list
+            list of indices, None will results for all flowlines.
+        units : str, optional
+            Units 'm' or 'km'. The default is 'm'.
+        Returns
+        -------
+        points : {index: x, y...}
+        '''
+        if indices is None:
+            indices = self.flowlineIDs()
+        return {ID: (self.extractPoint(distance, ID, units='km'))
+                for ID in indices}
+
+    def genColorDict(self, flowlineIDs=None):
+        '''
+        Generate a color map index by flowline ids
+        An outside list can be used to create a list than spans severa
+        glaciers (e.g., the union of all flowline ids).
+        Will recycle colors if ids > 10
+        Parameters
+        ----------
+        flowlineIDs : list, optional
+            flowline ids. The default is ids for this instance.
+
+        Returns
+        -------
+        None.
+
+        '''
+        if flowlineIDs is None:
+            flowlineIDs = self.flowlineIDs()
+        colors = mcolors.TABLEAU_COLORS.values()
+        # Cycle colors if more are needed
+        while len(colors) < len(flowlineIDs):
+            colors += mcolors.TABLEAU_COLORS.values()
+        return {ID: c for ID, c in zip(flowlineIDs, colors)}
+
+    def checkUnits(self, units):
+        '''
+        Check units return True for valid units. Print message for invalid.
+        '''
+        if units not in ['m', 'km']:
+            print('Invalid units: must be m or km')
+            return False
+        return True
+
+    def plotFlowlineLocations(self, ax=plt, units='m', indices=None,
+                              colorDict=None, **kwargs):
         '''
         Plot all flowline locations or a single location given by index
         Parameters
@@ -259,14 +392,18 @@ class Flowlines():
         -------
         None.
         '''
-        coords = {'m': self.xym, 'km': self.xykm}
-        if units not in ['m', 'km']:
-            print('Invalid units: must be m or km, reverting to m')
-            units = 'm'
+        # the units conversion to apply
+        if not self.checkUnits(units):
+            return
+        # color map
+        if colorDict is None:
+            colorDict = self.genColorDict()
+        # Default is all indices
         if indices is None:
-            lines = self.flowlines.keys()
-        else:
-            lines = [indices]
+            indices = self.flowlines.keys()
+        elif type(indices) is not list:
+            indices = [indices]
         # plot lines
-        for line in lines:
-            ax.plot(*coords[units](index=line), label=line, **kwargs)
+        for index in indices:
+            ax.plot(*getattr(self, f'xy{units}')(index=index),
+                    color=colorDict[index], label=index, **kwargs)
