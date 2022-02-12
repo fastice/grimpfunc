@@ -16,6 +16,8 @@ import pandas as pd
 import stackstac
 import datetime
 import numpy as np
+import rio_stac
+import pystac
 
 CHUNKSIZE = 512
 
@@ -54,57 +56,66 @@ class GIMPSubsetter():
         self.dataArrays = None
         self.subset = None
         self.bands = self._checkBands(bands)
+        
+        
+    def get_stac_item_template(self, URLs):
+        '''
+        read first geotiff to get STAC Item template (returns pystac.Item)
+        '''
+        first_url = URLs[0]
+        
+        date = datetime.datetime.strptime(first_url.split('/')[-2], '%Y.%m.%d')
+        collection = first_url.split('/')[-3],
+        
+        item = rio_stac.create_stac_item(first_url, 
+                                         input_datetime=date,
+                                         asset_media_type=str(pystac.MediaType.COG),
+                                         with_proj=True,
+                                         with_raster=True,
+                                        )
+        # Could remove: #['links'] #['assets']['asset']['roles']
+        # Remove statistics and histogram, b/c only applies to first
+        item.assets['asset'].extra_fields['raster:bands'][0].pop('statistics')
+        item.assets['asset'].extra_fields['raster:bands'][0].pop('histogram')
+        
+        return item
+        
 
     def construct_stac_items(self, URLs):
         ''' construct STAC-style dictionaries of CMR urls for stackstac '''
+        
+        item_template = self.get_stac_item_template(URLs)
+        asset_template = item_template.assets.pop('asset')
+        band_template = asset_template.href.split('/')[-1].split('_')[-3]
+        
         ITEMS = []
         for url in URLs:
-            item = {'id': os.path.basename(url),
-                    'collection': url.split('/')[-3],
-                    'properties': {'datetime': datetime.datetime.strptime(
-                        url.split('/')[-2], '%Y.%m.%d').isoformat()},
-                    'assets': {},
-                    'bbox': [-87.00998, 58.80463, 5.72895, 83.568293]
-                    }
+            item = item_template.clone()
+            # works with single asset per item datasets (e.g. only gamma0 urls)
+            item.id = os.path.basename(url)
+            item.datetime = datetime.datetime.strptime(url.split('/')[-2], '%Y.%m.%d')
             for band in self.bands:
-                bandUrl = url.replace('vv', band)
-                item['assets'][band] = {'href': bandUrl,
-                                        'type': 'application/x-geotiff'}
-            ITEMS.append(item)
+                asset_template.href = url.replace(band_template, band)
+                item.add_asset(band, asset_template)
+            
+            ITEMS.append(item.to_dict())
 
         return ITEMS
+    
 
     def lazy_open_stackstac(self, items):
         ''' return stackstac xarray dataarray '''
-        col = items[0]['collection']
-        if 'NSIDC-0723' in col:
-            band = self.bands[0]
-            resolution = bandsDict[band]['resolution']
-            dtype = bandsDict[band]['dtype']
-            fill_value = bandsDict[band]['noData']
-            # NOTE: does not apply to TSX
-            bounds = [-626000.0, -3356000.0, 850000.0, -695000.0]
-        # does not work well w/ TSX since all bounds are differet
-        # would need to open first asset in items to get bounds
-        # elif 'NSIDC-0481' in col:
-        #    resolution = 100
-        else:
-            dtype = 'float32'
-            fill_value = np.nan
-            resolution = 200
-            bounds = [-659100.0, -3379100.0, 857900.0, -639100.0]
         da = stackstac.stack(items,
                              assets=self.bands,
-                             epsg=3413,
-                             resolution=resolution,
-                             fill_value=fill_value,
-                             dtype=dtype,
                              chunksize=CHUNKSIZE,
-                             bounds=bounds
+                             # NOTE: use native projection, match rioxarray
+                             snap_bounds=False, #default=True
+                             xy_coords='center', #default='topleft'     
                              )
         da = da.rename(band='component')
         return da
 
+    
     @dask.delayed
     def lazy_openTiff(self, tiff, masked=False, productType='velocity'):
         ''' Lazy open of a single url '''
@@ -188,12 +199,14 @@ class GIMPSubsetter():
                 bands.remove(band)
         return bands
 
+    
     def loadStackStac(self, bands=None):
         ''' construct dataarray with stackstac '''
         self.bands = self._checkBands(bands)
         items = self.construct_stac_items(self.urls)
         self.DA = self.lazy_open_stackstac(items)
 
+        
     def loadDataArray(self, bands=None):
         ''' Load and concatenate arrays to create a rioxArray with coordinates
         time, component, y, x'''
