@@ -56,52 +56,51 @@ class GIMPSubsetter():
         self.dataArrays = None
         self.subset = None
         self.bands = self._checkBands(bands)
-        
-        
+
     def get_stac_item_template(self, URLs):
         '''
         read first geotiff to get STAC Item template (returns pystac.Item)
         '''
         first_url = URLs[0]
-        
+
         date = datetime.datetime.strptime(first_url.split('/')[-2], '%Y.%m.%d')
-        collection = first_url.split('/')[-3],
-        
-        item = rio_stac.create_stac_item(first_url, 
+        # collection = first_url.split('/')[-3],
+
+        item = rio_stac.create_stac_item(first_url,
                                          input_datetime=date,
-                                         asset_media_type=str(pystac.MediaType.COG),
+                                         asset_media_type=str(
+                                             pystac.MediaType.COG),
                                          with_proj=True,
                                          with_raster=True,
-                                        )
+                                         )
         # Could remove: #['links'] #['assets']['asset']['roles']
         # Remove statistics and histogram, b/c only applies to first
         item.assets['asset'].extra_fields['raster:bands'][0].pop('statistics')
         item.assets['asset'].extra_fields['raster:bands'][0].pop('histogram')
-        
+
         return item
-        
 
     def construct_stac_items(self, URLs):
         ''' construct STAC-style dictionaries of CMR urls for stackstac '''
-        
+
         item_template = self.get_stac_item_template(URLs)
         asset_template = item_template.assets.pop('asset')
         band_template = asset_template.href.split('/')[-1].split('_')[-3]
-        
+
         ITEMS = []
         for url in URLs:
             item = item_template.clone()
             # works with single asset per item datasets (e.g. only gamma0 urls)
             item.id = os.path.basename(url)
-            item.datetime = datetime.datetime.strptime(url.split('/')[-2], '%Y.%m.%d')
+            item.datetime = datetime.datetime.strptime(url.split('/')[-2],
+                                                       '%Y.%m.%d')
             for band in self.bands:
                 asset_template.href = url.replace(band_template, band)
                 item.add_asset(band, asset_template)
-            
+
             ITEMS.append(item.to_dict())
 
         return ITEMS
-    
 
     def lazy_open_stackstac(self, items):
         ''' return stackstac xarray dataarray '''
@@ -109,13 +108,12 @@ class GIMPSubsetter():
                              assets=self.bands,
                              chunksize=CHUNKSIZE,
                              # NOTE: use native projection, match rioxarray
-                             snap_bounds=False, #default=True
-                             xy_coords='center', #default='topleft'     
+                             snap_bounds=False,  # default=True
+                             xy_coords='center',  # default='topleft'
                              )
         da = da.rename(band='component')
         return da
 
-    
     @dask.delayed
     def lazy_openTiff(self, tiff, masked=False, productType='velocity'):
         ''' Lazy open of a single url '''
@@ -199,14 +197,12 @@ class GIMPSubsetter():
                 bands.remove(band)
         return bands
 
-    
     def loadStackStac(self, bands=None):
         ''' construct dataarray with stackstac '''
         self.bands = self._checkBands(bands)
         items = self.construct_stac_items(self.urls)
         self.DA = self.lazy_open_stackstac(items)
 
-        
     def loadDataArray(self, bands=None):
         ''' Load and concatenate arrays to create a rioxArray with coordinates
         time, component, y, x'''
