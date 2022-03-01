@@ -24,7 +24,7 @@ class boxPicker():
     ''' Pick a box on a SAR map '''
 
     def __init__(self, mapUrl=None, bbox=boxDefault, boxFile=None,
-                 localTiff=None, numWorkers=4):
+                 localTiff=None, numWorkers=2):
         '''
         Init routine for a boxPicker
 
@@ -70,7 +70,11 @@ class boxPicker():
 
     def plotMap(self, show=True):
         ''' Plot the map'''
-        da = rioxarray.open_rasterio(self.mapUrl, overview_level=3,
+        print(self.mapUrl)
+        option = '?list_dir=no'
+        vsiCurl = f'/vsicurl/{option}&url={self.mapUrl}'
+        #
+        da = rioxarray.open_rasterio(vsiCurl, overview_level=3,
                                      parse_coordinates=True,
                                      chunks=dict(band=1, y=512, x=512),
                                      masked=False).squeeze('band')

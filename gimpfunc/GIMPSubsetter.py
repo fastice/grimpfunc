@@ -14,7 +14,6 @@ import pandas as pd
 # from dask.diagnostics import ProgressBar
 # ProgressBar().register()
 import stackstac
-import datetime
 import numpy as np
 import rio_stac
 import pystac
@@ -35,13 +34,10 @@ bandsDict = {'vv': {'template': 'vv', 'noData': -1., 'name': 'velocity'},
              'ex': {'template': 'vv', 'noData': -1., 'name': 'velocity'},
              'ey': {'template': 'vv', 'noData': -1., 'name': 'velocity'},
              'dT': {'template': 'vv', 'noData': -2.e9, 'name': 'velocity'},
-             'image': {'template': 'image', 'noData': 0, 'dtype': 'uint8',
-                       'resolution': 25, 'name': 'image'},
+             'image': {'template': 'image', 'noData': 0, 'name': 'image'},
              'gamma0': {'template': 'gamma0', 'noData': -30.,
-                        'dtype': 'float32', 'resolution': 50,
                         'name': 'gamma0'},
-             'sigma0': {'template': 'sigma0', 'noData': -30.,
-                        'dtype': 'float32', 'resolution': 50, 'name': 'sigma0'}
+             'sigma0': {'template': 'sigma0', 'noData': -30., 'name': 'sigma0'}
              }
 
 
@@ -49,23 +45,28 @@ class GIMPSubsetter():
     ''' Class to open remote data set and create a rioxarry. The result can
     then be cropped to create a subset, which can then be saved to a netcdf'''
 
-    def __init__(self, bands=['vv'], urls=None, tiffs=None):
+    def __init__(self, bands=['vv'], urls=None, tiffs=None, numWorkers=4):
         self.urls = urls
-        self.tiffs = tiffs
+        if tiffs is not None:
+            self.urls = tiffs  # No longer seperate urls from tifs
+        if urls is not None and tiffs is not None:
+            print('Warning: specify only tifs or urls proceeding with\n'
+                  f'{self.urls}')
         self.DA = None
         self.dataArrays = None
         self.subset = None
+        self.dtype = None
         self.bands = self._checkBands(bands)
+        dask.config.set(num_workers=numWorkers)
 
     def get_stac_item_template(self, URLs):
         '''
         read first geotiff to get STAC Item template (returns pystac.Item)
         '''
-        first_url = URLs[0]
-
-        date = datetime.datetime.strptime(first_url.split('/')[-2], '%Y.%m.%d')
+        template = bandsDict[self.bands[0]]['template']
+        first_url = URLs[0].replace(template, self.bands[0])
+        date, _ = self.datesFromGimpName(os.path.basename(first_url))
         # collection = first_url.split('/')[-3],
-
         item = rio_stac.create_stac_item(first_url,
                                          input_datetime=date,
                                          asset_media_type=str(
@@ -73,32 +74,41 @@ class GIMPSubsetter():
                                          with_proj=True,
                                          with_raster=True,
                                          )
+        self.dtype = \
+            item.assets['asset'].extra_fields['raster:bands'][0]['data_type'] 
         # Could remove: #['links'] #['assets']['asset']['roles']
         # Remove statistics and histogram, b/c only applies to first
         item.assets['asset'].extra_fields['raster:bands'][0].pop('statistics')
         item.assets['asset'].extra_fields['raster:bands'][0].pop('histogram')
-
         return item
 
     def construct_stac_items(self, URLs):
         ''' construct STAC-style dictionaries of CMR urls for stackstac '''
-
+        # maintain seperate asset templates by band
+        asset_templates = {}
         item_template = self.get_stac_item_template(URLs)
-        asset_template = item_template.assets.pop('asset')
-        band_template = asset_template.href.split('/')[-1].split('_')[-3]
-
+        for band in self.bands:
+            band_template = bandsDict[band]['template']
+            url = URLs[0].replace(band_template, band)
+            asset_templates[band] = \
+                self.get_stac_item_template([url]).assets.pop('asset')
+        #
         ITEMS = []
         for url in URLs:
             item = item_template.clone()
             # works with single asset per item datasets (e.g. only gamma0 urls)
             item.id = os.path.basename(url)
-            item.datetime = datetime.datetime.strptime(url.split('/')[-2],
-                                                       '%Y.%m.%d')
+            date1, date2 = self.datesFromGimpName(item.id)
+            item.datetime = date1 + (date2 - date1) * 0.5
             for band in self.bands:
+                band_template = bandsDict[band]['template']
+                asset_template = asset_templates[band]
                 asset_template.href = url.replace(band_template, band)
+                #
                 item.add_asset(band, asset_template)
-
-            ITEMS.append(item.to_dict())
+                itemDict = item.to_dict()
+               
+            ITEMS.append(itemDict)
 
         return ITEMS
 
@@ -110,41 +120,16 @@ class GIMPSubsetter():
                              # NOTE: use native projection, match rioxarray
                              snap_bounds=False,  # default=True
                              xy_coords='center',  # default='topleft'
+                             dtype=self.dtype
                              )
-        da = da.rename(band='component')
+        # da = da.rename(band='component')
         return da
 
-    @dask.delayed
-    def lazy_openTiff(self, tiff, masked=False, productType='velocity'):
-        ''' Lazy open of a single url '''
-        # print(href)d
-        if productType not in productTypeDict.keys():
-            print(f'Warning in valid productType: {productType}')
-            return None
-        das = []
-        for band in self.bands:
-            template = bandsDict[band]['template']
-            filename = tiff.split('/')[-1]
-            tmp = tiff.split('/')[-3].replace('Vel-', '')
-            date1 = tmp.split('.')[0]
-            date2 = tmp.split('.')[1]
-            bandTiff = tiff.replace(template, band)
-            # create rioxarry
-            da = rioxarray.open_rasterio(bandTiff, lock=False,
-                                         default_name=bandsDict[band]['name'],
-                                         chunks=dict(band=1,
-                                                     y=CHUNKSIZE, x=CHUNKSIZE),
-                                         masked=masked).rename(
-                                             band='component')
-            da['component'] = [band]
-            da['time'] = pd.to_datetime(date1) + \
-                (pd.to_datetime(date2) - pd.to_datetime(date1)) * 0.5
-            da['name'] = filename
-            da['_FillValue'] = bandsDict[band]['noData']
-            das.append(da)
-        # Concatenate bands (components)
-        return xr.concat(das, dim='component', join='override',
-                         combine_attrs='drop')
+    def datesFromGimpName(self, filename):
+        ''' Parse gimp filename to get dates '''
+        date1 = filename.split('_')[4]
+        date2 = filename.split('_')[5]
+        return pd.to_datetime(date1), pd.to_datetime(date2)
 
     @dask.delayed
     def lazy_open(self, url, masked=False, productType='velocity'):
@@ -156,26 +141,30 @@ class GIMPSubsetter():
         das = []
         for band in self.bands:
             template = bandsDict[band]['template']
-            filename = url.split('/')[-1]
-            date = url.split('/')[-2]
+            filename = os.path.basename(url)
+            date1, date2 = self.datesFromGimpName(filename)
+            url = url.replace(template, band)
+            if 'https' in url:
             # print(date, pd.to_datetime(date))
-            option = '?list_dir=no'
+                option = '?list_dir=no'
             # swap temnplate for other bands
-            vsicurl = f'/vsicurl/{option}&url={url}'.replace(template, band)
+                url = f'/vsicurl/{option}&url={url}'
             # create rioxarry
-            da = rioxarray.open_rasterio(vsicurl, lock=False,
+            da = rioxarray.open_rasterio(url, lock=False,
                                          default_name=bandsDict[band]['name'],
                                          chunks=dict(band=1,
                                                      y=CHUNKSIZE, x=CHUNKSIZE),
                                          masked=masked).rename(
-                                             band='component')
-            da['component'] = [band]
-            da['time'] = pd.to_datetime(date)
+                                             band='band')
+            da['band'] = [band]
+            da['time'] = date1 + (date2 - date1) * 0.5
+            da['time1'] = date1
+            da['time2'] = date2
             da['name'] = filename
             da['_FillValue'] = bandsDict[band]['noData']
             das.append(da)
         # Concatenate bands (components)
-        return xr.concat(das, dim='component', join='override',
+        return xr.concat(das, dim='band', join='override',
                          combine_attrs='drop')
 
     def getBounds(self):
@@ -205,18 +194,14 @@ class GIMPSubsetter():
 
     def loadDataArray(self, bands=None):
         ''' Load and concatenate arrays to create a rioxArray with coordinates
-        time, component, y, x'''
+        time, band, y, x'''
         # NOTE: can have server-size issues w/ NSIDC if going above 15 threads
         # if psutil.cpu_count() > 15: num_threads = 12
         self.bands = self._checkBands(bands)
-        with dask.config.set({'scheduler': 'threads', 'num_workers': 8}):
-            if self.urls is not None:
-                self.dataArrays = dask.compute(
-                    *[self.lazy_open(url, masked=False) for url in self.urls])
-            else:
-                self.dataArrays = dask.compute(
-                    *[self.lazy_openTiff(tiff, masked=False)
-                      for tiff in self.tiffs])
+        with dask.config.set({'scheduler': 'threads', 'num_workers': 4}):
+            #if self.urls is not None:
+            self.dataArrays = dask.compute(
+                *[self.lazy_open(url, masked=False) for url in self.urls])
         # Concatenate along time dimensions
         self.DA = xr.concat(self.dataArrays, dim='time', join='override',
                             combine_attrs='drop')
@@ -251,3 +236,30 @@ class GIMPSubsetter():
                               'num_workers': numWorkers}):
             self.subset.to_netcdf(path=cdfFile)
         return cdfFile
+
+    def readFromNetCDF(self, cdfFile):
+        '''
+        Load data from netcdf file
+        Parameters
+        ----------
+        cdfFile : str
+            NetCDF file name.
+        Returns
+        -------
+        None.
+        '''
+        if '.nc' not in cdfFile:
+            cdfFile = f'{cdfFile}.nc'
+        xDS = xr.open_dataset(cdfFile, chunks='auto')
+        # Pull the first variable that is not spatial_ref
+        for var in list(xDS.data_vars.keys()):
+            if var != 'spatial_ref':
+                self.DA = xDS[var]
+                break
+        return xDS
+        try:
+            self.DA['spatial_ref'] = xDS['spatial_ref']
+        except Exception:
+            print('warning missing spatial_ref')
+        #
+        self.subset = self.DA  # subset is whole array at this point.

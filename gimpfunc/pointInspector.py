@@ -102,7 +102,7 @@ class pointInspector():
     def extractData(self, x, y, **kwargs):
         ''' Plot the time series, filtering out no data values '''
         # get data and time values
-        vOrig = self.xArray.sel(component=self.component).sel(
+        vOrig = self.xArray.sel(band=self.component).sel(
             x=x, y=y, method='nearest')[self.name].values.flatten()
         tOrig = self.xArray.time.values.flatten()
         t, v = self._removeNoData(tOrig, vOrig)
@@ -154,7 +154,7 @@ class pointInspector():
         if mapTitle is None:
             mapTitle = component
         # Setup the image plot.
-        img = self.xArray[self.name].sel(component=self.component,
+        img = self.xArray[self.name].sel(band=self.component,
                                          time=self.bounds['maxt'])
         imgPlot = img.hvplot.image(rasterize=True, aspect='equal',
                                    title=mapTitle).opts(
