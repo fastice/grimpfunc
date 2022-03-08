@@ -126,7 +126,7 @@ class GIMPSubsetter():
         return da
 
     def datesFromGimpName(self, filename):
-        ''' Parse gimp filename to get dates '''
+        ''' Parse grimp filename to get dates '''
         date1 = filename.split('_')[4]
         date2 = filename.split('_')[5]
         return pd.to_datetime(date1), pd.to_datetime(date2)

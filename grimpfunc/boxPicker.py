@@ -9,7 +9,7 @@ Created on Fri Apr  9 13:03:41 2021
 import panel as pn
 import holoviews as hv
 import hvplot.xarray
-import gimpfunc as gimp
+import grimpfunc as grimp
 import rioxarray
 import os
 import yaml
@@ -61,7 +61,7 @@ class boxPicker():
         version = 4
         # Increment version if not found
         for i in range(0, 5):
-            urls = gimp.get_urls('NSIDC-0723', str(int(version) + i),
+            urls = grimp.get_urls('NSIDC-0723', str(int(version) + i),
                                  '2020-01-01T00:00:01Z', '2020-01-05T00:23:59',
                                  None, None, '*image*')
             if len(urls) > 0:

@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "gimpfunc"
+name = "grimpfunc"
 version = "0.0.2"
 description = "SAR processing on the Cloud"
 authors = ["Ian Joughin <ian@apl.washington.edu>"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/fastice/gimpfunc"
-repository = "https://github.com/fastice/gimpfunc"
+homepage = "https://github.com/fastice/grimpfunc"
+repository = "https://github.com/fastice/grimpfunc"
 keywords = ["SAR", "NSIDC", "Holoviz"]
 
 [tool.poetry.dependencies]

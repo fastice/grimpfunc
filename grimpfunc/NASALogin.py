@@ -36,7 +36,7 @@ class NASALogin(param.Parameterized):
     cookie_jar = None
     netrcFile = os.path.expanduser('~/.netrc')
 
-    def __init__(self, cookieFile='.gimp_download_cookiejar.txt',
+    def __init__(self, cookieFile='.grimp_download_cookiejar.txt',
                  cookiePath='~',
                  requestPath='https://daacdata.apps.nsidc.org/pub/DATASETS/'):
         '''
@@ -44,7 +44,7 @@ class NASALogin(param.Parameterized):
         Parameters
         ----------
         cookieFile : str, optional
-            Cookie filename. The default is '.gimp_download_cookiejar.txt'.
+            Cookie filename. The default is '.grimp_download_cookiejar.txt'.
         cookiePath : str, optional
             Cookie path. The default is '~'.
 

@@ -9,7 +9,7 @@ import param
 import numpy as np
 from datetime import datetime
 import pandas as pd
-import gimpfunc as gimp
+import grimpfunc as grimp
 import panel as pn
 
 modes = {'none': {'productIndexes': [0, 1, 2, 3, 4, 5, 6], 
@@ -230,7 +230,7 @@ class cmrUrls(param.Parameterized):
         newUrls = []
         # Future proof by increasing version if nothing found
         for i in range(0, 5):
-            allUrls = gimp.get_urls(self.product, str(int(version) + i),
+            allUrls = grimp.get_urls(self.product, str(int(version) + i),
                                     self.firstDate.strftime(dateFormat1),
                                     self.lastDate.strftime(dateFormat2),
                                     bounding_box, polygon, pattern)
@@ -288,7 +288,7 @@ class cmrUrls(param.Parameterized):
         ''' Get list of all TSX boxes'''
         date1, date2 = '2009-01-01T00:00:01Z', '2029-01-01T00:00:01Z'
         for i in range(0, 5):
-            TSXurls = gimp.get_urls('NSIDC-0481',
+            TSXurls = grimp.get_urls('NSIDC-0481',
                                     str(int(versions['NSIDC-0481']) + i),
                                     date1, date2,
                                     self.boundingBox(), None, '*')
