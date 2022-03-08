@@ -70,7 +70,7 @@ class boxPicker():
 
     def plotMap(self, show=True):
         ''' Plot the map'''
-        print(self.mapUrl)
+        #print(self.mapUrl)
         option = '?list_dir=no'
         vsiCurl = f'/vsicurl/{option}&url={self.mapUrl}'
         #

@@ -16,6 +16,7 @@ import param
 import panel as pn
 import time
 
+site = 'urs.earthdata.nasa.gov'
 
 class NASALogin(param.Parameterized):
     ''' Creates a login panel that prompts for NSIDC (earthdata) credentials
@@ -61,7 +62,7 @@ class NASALogin(param.Parameterized):
         self.updateStatusMessage()
 
     @param.depends('enterCredential', watch=True)
-    def getCredentials(self):
+    def getCredentials(self, gui=True, updateNetRC=True):
         '''
         Get user name and password when enterCredential button is pressed
 
@@ -77,10 +78,13 @@ class NASALogin(param.Parameterized):
             self.get_new_cookie()
             count += 1
             time.sleep(0.1)
-        if self.check_cookie_is_logged_in(self.cookie_jar):
+        # Update if not logged in through netrc
+        if self.check_cookie_is_logged_in(self.cookie_jar) and updateNetRC:
             self.updateNetrc()  # Create/update .netrc file
-        self.updateStatusMessage()
-        self.error()
+        # Update messages if gui
+        if gui:
+            self.updateStatusMessage()
+            self.error()
 
     def resetCookie(self):
         ''' Remove cooking file - for debugging'''
@@ -267,34 +271,59 @@ class NASALogin(param.Parameterized):
         return pn.pane.Markdown(self.errorMsg, style={'color': 'red'},
                                 width=250)
 
+    def checkNetrc(self, password=None, username=None, setCredential=False):
+        # Start with blank or existing lines
+        if os.path.exists(self.netrcFile):
+            with open(self.netrcFile, 'r') as fpIn:
+                for line in fpIn:
+                    if site in line and self.username in line:
+                        # Case where not known
+                        if password is None and  username is None:
+                            # Set param values
+                            if setCredential: 
+                                parts = line.split()
+                                credential = dict(
+                                    zip([parts[x] for x in [0, 2, 4]],
+                                        [parts[x] for x in [1, 3, 5]]))
+                                print('Getting login from ~/.netrc')
+                                self.setCredential(credential)
+                            return True
+                        elif password in line and username in line:
+                            return True
+        return False
+    
+    def setCredential(self, credential):
+        '''
+        Set params with user name and password rather than use login panel
+        '''
+        self.param.set_param('username', credential['login'])
+        self.param.set_param('password', credential['password'])
+        
     def updateNetrc(self):
         ''' Update or create new ~/.netrc to include user name and passwd '''
         if len(self.username) == 0 or len(self.password) == 0:
             return  # Don't attempt for empty user/password
-        site = 'urs.earthdata.nasa.gov'
+        # Check
+        if self.checkNetrc(password=self.password):
+            return # Password in files so return
+        #
         rcLine = f'machine {site} login {self.username} ' \
             f'password {self.password}'
-        # Start with blank or existing lines
-        lines, newLines = [], []
+        # read existing if exists
         if os.path.exists(self.netrcFile):
             with open(self.netrcFile, 'r') as fpIn:
-                lines = fpIn.readlines()  # Open a new file
-        #
-        for line in lines:
-            if site in line and self.username in line:
-                # If password same return, else ignore line to update passwd
-                if self.password in line:
-                    return  # File already exits
-            else:
-                newLines.append(line)  # Keep existing lines for other site
-        # Correct entry not found, so append the new entry
-        newLines.append(rcLine)
-        # Save file
+                lines = fpIn.readlines()
+        else:
+            lines = []
+        # append new line
+        lines.append(rcLine)
+        # Write/overwrite netrc file with update
         with open(self.netrcFile, 'w') as fpOut:
-            fpOut.writelines(newLines)
-        os.chmod(self.netrcFile, 0o600)  # Ensure file user access only
-        return
-
+            fpOut.writelines(lines)
+        # Ensure file user access only    
+        os.chmod(self.netrcFile, 0o600)  
+        return    
+            
     def view(self):
         ''' Execute login procedure. First check if logged in. If so, return.
         Else start panel with login window '''
@@ -302,6 +331,9 @@ class NASALogin(param.Parameterized):
         if self.first:
             self.get_cookie()
             self.first = False
+         # Check netrc for password
+        if self.checkNetrc(setCredential=True):
+            self.getCredentials(gui=False, updateNetRC=False)
         # If logged in already, print message and return
         if self.check_cookie_is_logged_in(self.cookie_jar) and \
                 os.path.exists(self.netrcFile):

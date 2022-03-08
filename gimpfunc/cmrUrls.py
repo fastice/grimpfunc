@@ -12,6 +12,17 @@ import pandas as pd
 import gimpfunc as gimp
 import panel as pn
 
+modes = {'none': {'productIndexes': [0, 1, 2, 3, 4, 5, 6], 
+                  'boxNames': False, 'cumulative': True, 'defaultProduct': 'NSIDC-0725'},
+         'subsetter': {'productIndexes': [0, 1, 2, 3, 4, 5, 6],
+                       'boxNames': True, 'cumulative': False, 'defaultProduct': 'NSIDC-0725'},
+         'nisar': {'productIndexes': [2, 3, 4, 5],
+                   'boxNames': False, 'cumulative': False, 'defaultProduct': 'NSIDC-0725'}, 
+         'image': {'productIndexes': [1],
+                   'boxNames': False, 'cumulative': False, 'defaultProduct': 'NSIDC-0723'},
+         'terminus': {'productIndexes': [0],
+                              'boxNames': False, 'cumulative': False, 'defaultProduct': 'NSIDC-0642'}
+         }
 
 products = ['NSIDC-0642',
             'NSIDC-0723',
@@ -23,7 +34,7 @@ velocityMosaics = ['NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731', 'NSIDC-0766']
 velocityOptions = ['browse', 'speed', 'velocity', 'velocity+errors', 'all']
 
 productOptions = {'NSIDC-0642': ['termini'],
-                  'NSIDC-0723': ['gamma0', 'sigma0', 'image'],
+                  'NSIDC-0723': ['image', 'gamma0', 'sigma0'],
                   'NSIDC-0725': velocityOptions,
                   'NSIDC-0727': velocityOptions,
                   'NSIDC-0731': velocityOptions,
@@ -86,25 +97,35 @@ class cmrUrls(param.Parameterized):
     Search = param.Boolean(False)
     Clear = param.Boolean(False)
     results = pd.DataFrame()
-
-    def __init__(self, mode='none', debug=False):
+  
+    def __init__(self, mode='none', debug=False, date1=None, date2=None):
         super().__init__()
-        # Adjust options if subsetter mode
+        #
         self.mode = mode.lower()
-        # Subsetter mode pick by 481 products by box name and
-        # Only 1 product saved
-        if self.mode in ['subsetter', 'nisar']:
-            self.param.Clear.precedence = -1
-            for prod in velocityMosaics:
-                productOptions[prod] = ['-']
+        #
+        self.param.set_param('product', modes[self.mode]['defaultProduct'])
+        self.setProductOptions()
+        #
+        self.validProducts = \
+            [products[x] for x in modes[self.mode]['productIndexes']]
+        self.param.set_param('product', 
+                             products[modes[self.mode]['productIndexes'][0]])
+        #
+        # Pick only 1 481 product by box name
+        if modes[self.mode]['boxNames']:
+            productOptions['NSIDC-0481'] = self.TSXBoxNames()
             for x in productOptions['NSIDC-0481']:
                 productGroups[x] = ['vv']
                 fileTypes[x] = ['.tif']
-            if self.mode == 'subsetter':
-                productOptions['NSIDC-0481'] = self.TSXBoxNames()
-                self.param.product.objects = self.param.product.objects[1:]
-            else:
-                self.param.product.objects = self.param.product.objects[2:-1]
+        # Subsetter modes only one option
+        if not modes[self.mode]['cumulative']:
+            self.param.Clear.precedence = -1
+            for prod in velocityMosaics:
+                productOptions[prod] = ['-']
+        # Get mode appropriate objects
+        self.param.product.objects = \
+            [self.param.product.objects[x] 
+             for x in modes[self.mode]['productIndexes']]
         # Init variables
         self.first = True
         self.cogs = []
@@ -159,8 +180,8 @@ class cmrUrls(param.Parameterized):
         # Return if not a button push (e.g., first)
         if not self.Search and not initSearch:
             return
-        #
-        if self.mode in ['subsetter', 'nisar']:  # Start fresh for each search
+        # Start fresh for each search if not cumulative
+        if not modes[self.mode]['cumulative']: 
             self.resetData()
         #
         newUrls = self.getURLS()
@@ -204,7 +225,7 @@ class cmrUrls(param.Parameterized):
         polygon = None
         bounding_box = self.boundingBox()
         pattern = '*'
-        if self.mode == 'subsetter' and self.product == 'NSIDC-0481':
+        if modes[self.mode]['boxNames'] and self.product == 'NSIDC-0481':
             pattern = f'*{self.productFilter}*'  # Include TSX box for subset
         newUrls = []
         # Future proof by increasing version if nothing found
@@ -225,10 +246,13 @@ class cmrUrls(param.Parameterized):
         return sorted(newUrls)
 
     @param.depends('product', watch=True)
-    def setProductOptions(self):
+    def setProductOptions(self, productFilter=None):
         self.param.productFilter.objects = productOptions[self.product]
-        self.productFilter = productOptions[self.product][0]
+        if productFilter is None:
+            productFilter =  productOptions[self.product][0]
+        self.param.set_param( 'productFilter', productFilter)
         # Reset lat/lon bounds
+        #self.firstDate = param.CalendarDate(default=datetime(2020, 1, 1).date())
         for coord in ['LatMin', 'LatMax', 'LonMin', 'LonMax']:
             if self.product not in ['NSIDC-0481']:
                 getattr(self, coord).value = defaultBounds[coord]
@@ -293,7 +317,7 @@ class cmrUrls(param.Parameterized):
             msg = ''
         return pn.pane.Markdown(msg)
 
-    def view(self):
+    def view1(self):
         ''' Display panel for getting data '''
         # Directions
         directionsPanel = pn.pane.Markdown('''
@@ -344,9 +368,104 @@ class cmrUrls(param.Parameterized):
                       pn.Column(self.result_view, self.displayProductCount,
                                 self.debugMessage))
 
-    def initialSearch(self):
+    def view(self):
+        ''' Display panel for getting data '''
+        # Directions
+        directionsPanel = pn.pane.Markdown('''
+        ### Instructions:
+        * Select a product, filter (e.g., speed), and date, and bounds
+        * Press Search to find products,
+        * Repeat procedure to append additional products.
+        * Press Clear to remove all results and start over
+        ''')
+        # Data legend
+        names = ['- **NSIDC-0642:** Terminus Locations<br/>',
+                 '- **NSIDC-0723:** S1A/B Image Mosaics<br/>',
+                 '- **NSIDC-0725:** Annual Velocity<br/>',
+                 '- **NSIDC-0727:** Quarterly Velocity<br/>',
+                 '- **NSIDC-0731:** Monthly Velocity<br/>',
+                 '- **NSIDC-0766:** 6/12-Day Velocity<br/>',
+                 '- **NSIDC-0481:** TSX Individual Glacier Velocity']
+        searchWidgets = {'product': pn.widgets.RadioButtonGroup,
+                         'productFilter': pn.widgets.Select,
+                         'firstDate': pn.widgets.DatePicker,
+                         'lastDate': pn.widgets.DatePicker,
+                         'Search': pn.widgets.Button}
+        
+        names = [names[x] for x in  modes[self.mode]['productIndexes']]
+        # Clear precedence ensures this won't plot in subsetter mode
+        searchWidgets['Clear'] = pn.widgets.Button
+        #
+        infoPanel = pn.Row(
+            pn.pane.Markdown(
+                f'''**Product Key: **<br/>{''.join(names[0:3])}'''),
+            pn.pane.Markdown(f'''<br/>{''.join(names[3:])}'''))
+        leftWidth = max(len(names) * 100, 300)
+        # Search widges panel
+        self.inputs = pn.Param(self.param,
+                               widgets=searchWidgets,
+                               name='Select Product & Parameters',
+                               width=leftWidth)
+        # Merge with directions
+        panels = [directionsPanel, self.inputs]
+        # Add lat/lon search (for none)
+        if not modes[self.mode]['boxNames'] and 6 in modes[self.mode]['productIndexes']:
+            boundsPanel = pn.Column(pn.Row(self.LatMin, self.LatMax),
+                                    pn.Row(self.LonMin, self.LonMax))
+            boundsLabel = pn.pane.Markdown('###Search Area (NSIDC-481 only)')
+            panels += [boundsPanel, boundsLabel]
+        panels += [infoPanel]
+        return pn.Row(pn.Column(*panels, min_width=leftWidth),
+                      pn.Column(self.result_view, self.displayProductCount,
+                                self.debugMessage))
+
+    def _formatDate(self, myDate):
+        return datetime.strptime(myDate, '%Y-%m-%d').date()
+    
+    def _checkParam(self, param, options, name):
+        ''' Check that "param" with "name" is in the list of "options" '''
+        if param is None:
+            return True
+        if param not in options:
+            print(f'Invalid value ({param}) for parameter ({name}).')
+            print(f'Valid options are: {options}')
+            return False
+        #
+        return True
+    
+    def _setDates(self, firstDate, lastDate):
+        '''
+        Set dates if specified.
+        '''
+        try: 
+            if firstDate is not None:
+                self.param.set_param('firstDate', self._formatDate(firstDate))
+            if lastDate is not None:
+                self.param.set_param('lastDate', self._formatDate(lastDate))
+        except Exception:
+            print(f'Invalid Date(s): {firstDate} and/or {lastDate}')
+            print('Use "YYYY-MM-DD"')
+            return False
+        return True
+        
+    def initialSearch(self, firstDate=None, lastDate=None, product=None,
+                      productFilter=None):
         ''' This will display the panel and do an initial search '''
-        self.setProductOptions()
-        self.param.productFilter.objects = productOptions[self.product]
+        # set Dates
+        if not self._setDates(firstDate, lastDate):
+            return
+        # Set product if specified.
+        if not self._checkParam(product, self.validProducts, 'product'):
+            return
+        if product is not None:
+            self.param.set_param('product', product)
+        # check productFilter 
+        if not self._checkParam(productFilter,
+                                self.param.productFilter.objects,
+                                'productFilter'):
+            return
+        # Update product options
+        self.setProductOptions(productFilter=productFilter)
+        # Run the search
         self.findData(initSearch=True)
         return self.view()
