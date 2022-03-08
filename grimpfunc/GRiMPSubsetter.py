@@ -20,10 +20,14 @@ import pystac
 
 CHUNKSIZE = 512
 
-productTypeDict = {'velocity': {'bands': ['vv', 'vx', 'vy'], 'template': 'vv'},
-                   'image': {'bands': ['image'], 'template': 'image'},
-                   'gamma0': {'bands': ['gamma0'], 'template': 'gamma0'},
-                   'sigma0': {'bands': ['sigma0'], 'template': 'sigma0'}}
+productTypeDict = {'velocity': {'bands': ['vv', 'vx', 'vy'], 'template': 'vv',
+                                'index1': 4, 'index2': 5},
+                   'image': {'bands': ['image'], 'template': 'image',
+                             'index1': 3, 'index2': 4},
+                   'gamma0': {'bands': ['gamma0'], 'template': 'gamma0',
+                              'index1': 3, 'index2': 4},
+                   'sigma0': {'bands': ['sigma0'], 'template': 'sigma0',
+                              'index1': 3, 'index2': 4}}
 
 # valid bands and the reference url type
 # NOTE NSIDC-0481: TSX Individual Glacier Velocity resolution=100
@@ -41,7 +45,7 @@ bandsDict = {'vv': {'template': 'vv', 'noData': -1., 'name': 'velocity'},
              }
 
 
-class GIMPSubsetter():
+class GRiMPSubsetter():
     ''' Class to open remote data set and create a rioxarry. The result can
     then be cropped to create a subset, which can then be saved to a netcdf'''
 
@@ -65,7 +69,11 @@ class GIMPSubsetter():
         '''
         template = bandsDict[self.bands[0]]['template']
         first_url = URLs[0].replace(template, self.bands[0])
-        date, _ = self.datesFromGimpName(os.path.basename(first_url))
+        productType = bandsDict[self.bands[0]]['name']
+        index1 = productTypeDict[productType]['index1']
+        index2 = productTypeDict[productType]['index2']
+        date, _ = self.datesFromGrimpName(os.path.basename(first_url),
+                                          index1=index1, index2=index2)
         # collection = first_url.split('/')[-3],
         item = rio_stac.create_stac_item(first_url,
                                          input_datetime=date,
@@ -75,7 +83,7 @@ class GIMPSubsetter():
                                          with_raster=True,
                                          )
         self.dtype = \
-            item.assets['asset'].extra_fields['raster:bands'][0]['data_type'] 
+            item.assets['asset'].extra_fields['raster:bands'][0]['data_type']
         # Could remove: #['links'] #['assets']['asset']['roles']
         # Remove statistics and histogram, b/c only applies to first
         item.assets['asset'].extra_fields['raster:bands'][0].pop('statistics')
@@ -98,7 +106,11 @@ class GIMPSubsetter():
             item = item_template.clone()
             # works with single asset per item datasets (e.g. only gamma0 urls)
             item.id = os.path.basename(url)
-            date1, date2 = self.datesFromGimpName(item.id)
+            productType = bandsDict[self.bands[0]]['name']
+            index1 = productTypeDict[productType]['index1']
+            index2 = productTypeDict[productType]['index2']
+            date1, date2 = self.datesFromGrimpName(item.id, index1=index1,
+                                                   index2=index2)
             item.datetime = date1 + (date2 - date1) * 0.5
             for band in self.bands:
                 band_template = bandsDict[band]['template']
@@ -107,7 +119,7 @@ class GIMPSubsetter():
                 #
                 item.add_asset(band, asset_template)
                 itemDict = item.to_dict()
-               
+
             ITEMS.append(itemDict)
 
         return ITEMS
@@ -125,27 +137,41 @@ class GIMPSubsetter():
         # da = da.rename(band='component')
         return da
 
-    def datesFromGimpName(self, filename):
-        ''' Parse grimp filename to get dates '''
-        date1 = filename.split('_')[4]
-        date2 = filename.split('_')[5]
+    def datesFromGrimpName(self, filename, index1=4, index2=5):
+        '''
+        Parse grimp filename to get dates
+        Parameters
+        ----------
+        filename : str
+            product file name.
+        index1 : int, optional
+            date1 location in "_" seperated filename. The default is 4.
+        index2 : int, optional
+            date2 location in "_" seperated filename. The default is 5.
+        Returns
+        -------
+        date1, date2, datetime
+            First and second names from date str.
+        '''
+        date1 = filename.split('_')[index1]
+        date2 = filename.split('_')[index2]
         return pd.to_datetime(date1), pd.to_datetime(date2)
 
     @dask.delayed
-    def lazy_open(self, url, masked=False, productType='velocity'):
+    def lazy_open(self, url, masked=False):
         ''' Lazy open of a single url '''
         # print(href)
-        if productType not in productTypeDict.keys():
-            print(f'Warning in valid productType: {productType}')
-            return None
         das = []
         for band in self.bands:
+            productType = bandsDict[band]['name']
             template = bandsDict[band]['template']
             filename = os.path.basename(url)
-            date1, date2 = self.datesFromGimpName(filename)
+            index1 = productTypeDict[productType]['index1']
+            index2 = productTypeDict[productType]['index2']
+            date1, date2 = self.datesFromGrimpName(filename, index1=index1,
+                                                   index2=index2)
             url = url.replace(template, band)
             if 'https' in url:
-            # print(date, pd.to_datetime(date))
                 option = '?list_dir=no'
             # swap temnplate for other bands
                 url = f'/vsicurl/{option}&url={url}'
@@ -199,7 +225,7 @@ class GIMPSubsetter():
         # if psutil.cpu_count() > 15: num_threads = 12
         self.bands = self._checkBands(bands)
         with dask.config.set({'scheduler': 'threads', 'num_workers': 4}):
-            #if self.urls is not None:
+            # if self.urls is not None:
             self.dataArrays = dask.compute(
                 *[self.lazy_open(url, masked=False) for url in self.urls])
         # Concatenate along time dimensions
