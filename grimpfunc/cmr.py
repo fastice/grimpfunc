@@ -85,14 +85,15 @@ def build_cmr_query_url(short_name, version, time_start, time_end, page,
 
 
 def get_urls(short_name, version, time_start, time_end, bounding_box, polygon,
-             filename_filter):
+             filename_filter, verbose=False):
     urls = []
     # Loop over pages - this should allow 30,000 returns 15*2000
     for page in range(1, 16):
         query_url = build_cmr_query_url(short_name, version, time_start,
                                         time_end, page,
                                         bounding_box, polygon, filename_filter)
-        # print(query_url)
+        if verbose:
+            print(query_url)
         search_results = query_cmr(query_url)
         urls += cmr_filter_urls(search_results)
         # Page not full so done

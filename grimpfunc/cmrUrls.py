@@ -12,16 +12,21 @@ import pandas as pd
 import grimpfunc as grimp
 import panel as pn
 
-modes = {'none': {'productIndexes': [0, 1, 2, 3, 4, 5, 6], 
-                  'boxNames': False, 'cumulative': True, 'defaultProduct': 'NSIDC-0725'},
+modes = {'none': {'productIndexes': [0, 1, 2, 3, 4, 5, 6],
+                  'boxNames': False, 'cumulative': True,
+                  'defaultProduct': 'NSIDC-0725'},
          'subsetter': {'productIndexes': [0, 1, 2, 3, 4, 5, 6],
-                       'boxNames': True, 'cumulative': False, 'defaultProduct': 'NSIDC-0725'},
+                       'boxNames': True, 'cumulative': False,
+                       'defaultProduct': 'NSIDC-0725'},
          'nisar': {'productIndexes': [2, 3, 4, 5],
-                   'boxNames': False, 'cumulative': False, 'defaultProduct': 'NSIDC-0725'}, 
+                   'boxNames': False, 'cumulative': False,
+                   'defaultProduct': 'NSIDC-0725'},
          'image': {'productIndexes': [1],
-                   'boxNames': False, 'cumulative': False, 'defaultProduct': 'NSIDC-0723'},
+                   'boxNames': False, 'cumulative': False,
+                   'defaultProduct': 'NSIDC-0723'},
          'terminus': {'productIndexes': [0],
-                              'boxNames': False, 'cumulative': False, 'defaultProduct': 'NSIDC-0642'}
+                      'boxNames': False, 'cumulative': False,
+                      'defaultProduct': 'NSIDC-0642'}
          }
 
 products = ['NSIDC-0642',
@@ -97,8 +102,9 @@ class cmrUrls(param.Parameterized):
     Search = param.Boolean(False)
     Clear = param.Boolean(False)
     results = pd.DataFrame()
-  
-    def __init__(self, mode='none', debug=False, date1=None, date2=None):
+
+    def __init__(self, mode='none', debug=False, date1=None, date2=None,
+                 verbose=False):
         super().__init__()
         #
         self.mode = mode.lower()
@@ -108,8 +114,9 @@ class cmrUrls(param.Parameterized):
         #
         self.validProducts = \
             [products[x] for x in modes[self.mode]['productIndexes']]
-        self.param.set_param('product', 
+        self.param.set_param('product',
                              products[modes[self.mode]['productIndexes'][0]])
+        self.verbose = verbose
         #
         # Pick only 1 481 product by box name
         if modes[self.mode]['boxNames']:
@@ -124,7 +131,7 @@ class cmrUrls(param.Parameterized):
                 productOptions[prod] = ['-']
         # Get mode appropriate objects
         self.param.product.objects = \
-            [self.param.product.objects[x] 
+            [self.param.product.objects[x]
              for x in modes[self.mode]['productIndexes']]
         # Init variables
         self.first = True
@@ -181,7 +188,7 @@ class cmrUrls(param.Parameterized):
         if not self.Search and not initSearch:
             return
         # Start fresh for each search if not cumulative
-        if not modes[self.mode]['cumulative']: 
+        if not modes[self.mode]['cumulative']:
             self.resetData()
         #
         newUrls = self.getURLS()
@@ -231,9 +238,10 @@ class cmrUrls(param.Parameterized):
         # Future proof by increasing version if nothing found
         for i in range(0, 5):
             allUrls = grimp.get_urls(self.product, str(int(version) + i),
-                                    self.firstDate.strftime(dateFormat1),
-                                    self.lastDate.strftime(dateFormat2),
-                                    bounding_box, polygon, pattern)
+                                     self.firstDate.strftime(dateFormat1),
+                                     self.lastDate.strftime(dateFormat2),
+                                     bounding_box, polygon, pattern,
+                                     verbose=self.verbose)
             if len(allUrls) > 0:  # Some found so assume version current
                 break
         for url in allUrls:
@@ -249,10 +257,9 @@ class cmrUrls(param.Parameterized):
     def setProductOptions(self, productFilter=None):
         self.param.productFilter.objects = productOptions[self.product]
         if productFilter is None:
-            productFilter =  productOptions[self.product][0]
-        self.param.set_param( 'productFilter', productFilter)
+            productFilter = productOptions[self.product][0]
+        self.param.set_param('productFilter', productFilter)
         # Reset lat/lon bounds
-        #self.firstDate = param.CalendarDate(default=datetime(2020, 1, 1).date())
         for coord in ['LatMin', 'LatMax', 'LonMin', 'LonMax']:
             if self.product not in ['NSIDC-0481']:
                 getattr(self, coord).value = defaultBounds[coord]
@@ -289,9 +296,9 @@ class cmrUrls(param.Parameterized):
         date1, date2 = '2009-01-01T00:00:01Z', '2029-01-01T00:00:01Z'
         for i in range(0, 5):
             TSXurls = grimp.get_urls('NSIDC-0481',
-                                    str(int(versions['NSIDC-0481']) + i),
-                                    date1, date2,
-                                    self.boundingBox(), None, '*')
+                                     str(int(versions['NSIDC-0481']) + i),
+                                     date1, date2,
+                                     self.boundingBox(), None, '*')
             if len(TSXurls) > 0:
                 return self.findTSXBoxes(urls=TSXurls)
 
@@ -391,8 +398,8 @@ class cmrUrls(param.Parameterized):
                          'firstDate': pn.widgets.DatePicker,
                          'lastDate': pn.widgets.DatePicker,
                          'Search': pn.widgets.Button}
-        
-        names = [names[x] for x in  modes[self.mode]['productIndexes']]
+
+        names = [names[x] for x in modes[self.mode]['productIndexes']]
         # Clear precedence ensures this won't plot in subsetter mode
         searchWidgets['Clear'] = pn.widgets.Button
         #
@@ -409,7 +416,8 @@ class cmrUrls(param.Parameterized):
         # Merge with directions
         panels = [directionsPanel, self.inputs]
         # Add lat/lon search (for none)
-        if not modes[self.mode]['boxNames'] and 6 in modes[self.mode]['productIndexes']:
+        if not modes[self.mode]['boxNames'] and \
+                6 in modes[self.mode]['productIndexes']:
             boundsPanel = pn.Column(pn.Row(self.LatMin, self.LatMax),
                                     pn.Row(self.LonMin, self.LonMax))
             boundsLabel = pn.pane.Markdown('###Search Area (NSIDC-481 only)')
@@ -421,7 +429,7 @@ class cmrUrls(param.Parameterized):
 
     def _formatDate(self, myDate):
         return datetime.strptime(myDate, '%Y-%m-%d').date()
-    
+
     def _checkParam(self, param, options, name):
         ''' Check that "param" with "name" is in the list of "options" '''
         if param is None:
@@ -432,12 +440,12 @@ class cmrUrls(param.Parameterized):
             return False
         #
         return True
-    
+
     def _setDates(self, firstDate, lastDate):
         '''
         Set dates if specified.
         '''
-        try: 
+        try:
             if firstDate is not None:
                 self.param.set_param('firstDate', self._formatDate(firstDate))
             if lastDate is not None:
@@ -447,7 +455,7 @@ class cmrUrls(param.Parameterized):
             print('Use "YYYY-MM-DD"')
             return False
         return True
-        
+
     def initialSearch(self, firstDate=None, lastDate=None, product=None,
                       productFilter=None):
         ''' This will display the panel and do an initial search '''
@@ -459,7 +467,7 @@ class cmrUrls(param.Parameterized):
             return
         if product is not None:
             self.param.set_param('product', product)
-        # check productFilter 
+        # check productFilter
         if not self._checkParam(productFilter,
                                 self.param.productFilter.objects,
                                 'productFilter'):
