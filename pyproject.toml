@@ -11,22 +11,22 @@ keywords = ["SAR", "NSIDC", "Holoviz"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-dask = "^2021"
+dask = ">=2021"
 pandas = "^1"
 progressbar2 = "^3"
 holoviews = "^1"
 hvplot = "^0"
-numpy = "^1.20.0"
+numpy = "^1"
 panel = "^0"
 pystac = "^1"
 requests = "^2"
 rioxarray = "^0"
 rio-stac = "^0"
-stackstac = "^0.2"
-xarray = "^0"
-# NOTE: qgis not on pypi, just conda-forge
-#qgis = { version = "3.18", optional = true }
+stackstac = "^0"
+xarray = ">=0.20"
 
+# NOTE: qgis not on pypi, just conda-forge
+# qgis = { version = "3.18", optional = true }
 #[tool.poetry.extras]
 #qgis = ["qgis"]
 
@@ -39,5 +39,5 @@ vcs = "git"
 style = "semver"
 
 [build-system]
-requires = ["setuptools", "poetry-core @ git+https://github.com/python-poetry/poetry-core.git@master"]
+requires = ["setuptools", "poetry-core>=1.0.8"]
 build-backend = "poetry.core.masonry.api"
