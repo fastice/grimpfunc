@@ -45,7 +45,7 @@ bandsDict = {'vv': {'template': 'vv', 'noData': -1., 'name': 'velocity'},
              }
 
 
-class GRiMPSubsetter():
+class GrIMPSubsetter():
     ''' Class to open remote data set and create a rioxarry. The result can
     then be cropped to create a subset, which can then be saved to a netcdf'''
 
