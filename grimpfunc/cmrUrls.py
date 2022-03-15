@@ -12,10 +12,10 @@ import pandas as pd
 import grimpfunc as grimp
 import panel as pn
 
-modes = {'none': {'productIndexes': [0, 1, 2, 3, 4, 5, 6],
+modes = {'none': {'productIndexes': [0, 1, 2, 3, 4, 5, 6, 7],
                   'boxNames': False, 'cumulative': True,
                   'defaultProduct': 'NSIDC-0725'},
-         'subsetter': {'productIndexes': [0, 1, 2, 3, 4, 5, 6],
+         'subsetter': {'productIndexes': [0, 1, 2, 3, 4, 5, 6, 7],
                        'boxNames': True, 'cumulative': False,
                        'defaultProduct': 'NSIDC-0725'},
          'nisar': {'productIndexes': [2, 3, 4, 5],
@@ -32,7 +32,7 @@ modes = {'none': {'productIndexes': [0, 1, 2, 3, 4, 5, 6],
 products = ['NSIDC-0642',
             'NSIDC-0723',
             'NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731', 'NSIDC-0766',
-            'NSIDC-0481']
+            'NSIDC-0481', 'NSIDC-0646']
 
 velocityMosaics = ['NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731', 'NSIDC-0766']
 
@@ -44,11 +44,13 @@ productOptions = {'NSIDC-0642': ['termini'],
                   'NSIDC-0727': velocityOptions,
                   'NSIDC-0731': velocityOptions,
                   'NSIDC-0766': velocityOptions,
-                  'NSIDC-0481': velocityOptions[1:]}
+                  'NSIDC-0481': velocityOptions[1:],
+                  'NSIDC-0646': velocityOptions[1:]
+                  }
 # Current versions, if versions updated at DAAC, will try later version
 versions = {'NSIDC-0723': '4', 'NSIDC-0725': '3', 'NSIDC-0727': '3',
             'NSIDC-0731': '3', 'NSIDC-0642': '2', 'NSIDC-0766': '1',
-            'NSIDC-0481': '3',
+            'NSIDC-0481': '3', 'NSIDC-0646': '3' 
             }
 defaultProduct = 'NSIDC-0725'
 
@@ -116,12 +118,19 @@ class cmrUrls(param.Parameterized):
             [products[x] for x in modes[self.mode]['productIndexes']]
         self.param.set_param('product',
                              products[modes[self.mode]['productIndexes'][0]])
+     
         self.verbose = verbose
         #
         # Pick only 1 481 product by box name
         if modes[self.mode]['boxNames']:
-            productOptions['NSIDC-0481'] = self.TSXBoxNames()
+            if modes[self.mode]['boxNames']:
+                productOptions['NSIDC-0481'] = self.TSXBoxNames()
+                productOptions['NSIDC-0646'] = self.TSXBoxNames(product=
+                                                                'NSIDC-0646')
             for x in productOptions['NSIDC-0481']:
+                productGroups[x] = ['vv']
+                fileTypes[x] = ['.tif']
+            for x in productOptions['NSIDC-0646']:
                 productGroups[x] = ['vv']
                 fileTypes[x] = ['.tif']
         # Subsetter modes only one option
@@ -146,8 +155,13 @@ class cmrUrls(param.Parameterized):
         self.msg = 'Init'
     # initialize with empty list
 
-    def getCogs(self):
-        return [x for x in self.urls if x.endswith('.tif')]
+    def getCogs(self, replace=None, removeTiff=False):
+        cogs  = [x for x in self.urls if x.endswith('.tif')]
+        if removeTiff:
+            cogs  = [x.replace('.tif', '') for x in cogs]
+        if replace is not None:
+            cogs  = [x.replace(replace, '*') for x in cogs]
+        return cogs
 
     def getShapes(self):
         return [x for x in self.urls if x.endswith('.shp')]
@@ -232,7 +246,8 @@ class cmrUrls(param.Parameterized):
         polygon = None
         bounding_box = self.boundingBox()
         pattern = '*'
-        if modes[self.mode]['boxNames'] and self.product == 'NSIDC-0481':
+        if modes[self.mode]['boxNames'] and \
+                (self.product == 'NSIDC-0481' or self.product == 'NSIDC-0646'):
             pattern = f'*{self.productFilter}*'  # Include TSX box for subset
         newUrls = []
         # Future proof by increasing version if nothing found
@@ -258,10 +273,12 @@ class cmrUrls(param.Parameterized):
         self.param.productFilter.objects = productOptions[self.product]
         if productFilter is None:
             productFilter = productOptions[self.product][0]
+        #print(productFilter, self.product)
+        #print(productOptions[self.product])
         self.param.set_param('productFilter', productFilter)
         # Reset lat/lon bounds
         for coord in ['LatMin', 'LatMax', 'LonMin', 'LonMax']:
-            if self.product not in ['NSIDC-0481']:
+            if self.product not in ['NSIDC-0481', 'NSIDC-0646']:
                 getattr(self, coord).value = defaultBounds[coord]
                 getattr(self, coord).disabled = True
             else:
@@ -291,23 +308,27 @@ class cmrUrls(param.Parameterized):
         return pn.widgets.DataFrame(self.results, height=600,
                                     autosize_mode='fit_columns')
 
-    def TSXBoxNames(self):
-        ''' Get list of all TSX boxes'''
-        date1, date2 = '2009-01-01T00:00:01Z', '2029-01-01T00:00:01Z'
-        for i in range(0, 5):
-            TSXurls = grimp.get_urls('NSIDC-0481',
-                                     str(int(versions['NSIDC-0481']) + i),
-                                     date1, date2,
-                                     self.boundingBox(), None, '*')
-            if len(TSXurls) > 0:
-                return self.findTSXBoxes(urls=TSXurls)
+    def TSXBoxNames(self, product='NSIDC-0481'):
+       ''' Get list of all TSX boxes'''
+       params = {'NSIDC-0481': 
+                     ('2009-01-01T00:00:01Z', '2029-01-01T00:00:01Z', 'TSX'),
+                 'NSIDC-0646':
+                     ('2009-01-01T00:00:01Z', '2010-01-01T00:00:01Z', 'OPT')}
+       date1, date2, pattern = params[product]
+       for i in range(0, 5):
+           TSXurls = grimp.get_urls(product,
+                                   str(int(versions[product]) + i),
+                                   date1, date2,
+                                   self.boundingBox(), None, '*')
+           if len(TSXurls) > 0:
+               return self.findTSXBoxes(urls=TSXurls, pattern=pattern)
 
-    def findTSXBoxes(self, urls=None):
+    def findTSXBoxes(self, urls=None, pattern='TSX'):
         ''' Return list of unique boxes for the cogs '''
         if urls is None:
             urls = self.getCogs()
         boxes = list(np.unique([x.split('/')[-1].split('_')[1]
-                                for x in urls if 'TSX' in x]))
+                                for x in urls if pattern in x]))
         if not boxes:  # Empty list, so fill with ''
             boxes = ['']
         return boxes
@@ -323,57 +344,6 @@ class cmrUrls(param.Parameterized):
         else:
             msg = ''
         return pn.pane.Markdown(msg)
-
-    def view1(self):
-        ''' Display panel for getting data '''
-        # Directions
-        directionsPanel = pn.pane.Markdown('''
-        ### Instructions:
-        * Select a product, filter (e.g., speed), and date, and bounds
-        * Press Search to find products,
-        * Repeat procedure to append additional products.
-        * Press Clear to remove all results and start over
-        ''')
-        # Data legend
-        names = ['- **NSIDC-0642:** Terminus Locations<br/>',
-                 '- **NSIDC-0723:** S1A/B Image Mosaics<br/>',
-                 '- **NSIDC-0725:** Annual Velocity<br/>',
-                 '- **NSIDC-0727:** Quarterly Velocity<br/>',
-                 '- **NSIDC-0731:** Monthly Velocity<br/>',
-                 '- **NSIDC-0766:** 6/12-Day Velocity<br/>',
-                 '- **NSIDC-0481:** TSX Individual Glacier Velocity']
-        searchWidgets = {'product': pn.widgets.RadioButtonGroup,
-                         'productFilter': pn.widgets.Select,
-                         'firstDate': pn.widgets.DatePicker,
-                         'lastDate': pn.widgets.DatePicker,
-                         'Search': pn.widgets.Button}
-        if self.mode == 'subsetter':
-            names = names[1:]
-        elif self.mode == 'nisar':
-            names = names[2:-1]
-        # Clear precedence ensures this won't plot in subsetter mode
-        searchWidgets['Clear'] = pn.widgets.Button
-        #
-        infoPanel = pn.Row(
-            pn.pane.Markdown(
-                f'''**Product Key: **<br/>{''.join(names[0:3])}'''),
-            pn.pane.Markdown(f'''<br/>{''.join(names[3:])}'''))
-        leftWidth = len(names) * 100
-        self.inputs = pn.Param(self.param,
-                               widgets=searchWidgets,
-                               name='Select Product & Parameters',
-                               width=leftWidth)
-
-        panels = [directionsPanel, self.inputs]
-        if self.mode not in ['subsetter', 'nisar']:
-            boundsPanel = pn.Column(pn.Row(self.LatMin, self.LatMax),
-                                    pn.Row(self.LonMin, self.LonMax))
-            boundsLabel = pn.pane.Markdown('###Search Area (NSIDC-481 only)')
-            panels += [boundsPanel, boundsLabel]
-        panels += [infoPanel]
-        return pn.Row(pn.Column(*panels, min_width=leftWidth),
-                      pn.Column(self.result_view, self.displayProductCount,
-                                self.debugMessage))
 
     def view(self):
         ''' Display panel for getting data '''
@@ -392,7 +362,9 @@ class cmrUrls(param.Parameterized):
                  '- **NSIDC-0727:** Quarterly Velocity<br/>',
                  '- **NSIDC-0731:** Monthly Velocity<br/>',
                  '- **NSIDC-0766:** 6/12-Day Velocity<br/>',
-                 '- **NSIDC-0481:** TSX Individual Glacier Velocity']
+                 '- **NSIDC-0481:** TSX Individual Glacier Velocity<br/>',
+                 '- **NSIDC-0646:** Optical Individual Glacier Velocity'
+                 ]
         searchWidgets = {'product': pn.widgets.RadioButtonGroup,
                          'productFilter': pn.widgets.Select,
                          'firstDate': pn.widgets.DatePicker,
@@ -405,8 +377,8 @@ class cmrUrls(param.Parameterized):
         #
         infoPanel = pn.Row(
             pn.pane.Markdown(
-                f'''**Product Key: **<br/>{''.join(names[0:3])}'''),
-            pn.pane.Markdown(f'''<br/>{''.join(names[3:])}'''))
+                f'''**Product Key: **<br/>{''.join(names[0:4])}'''),
+            pn.pane.Markdown(f'''<br/>{''.join(names[4:])}'''))
         leftWidth = max(len(names) * 100, 300)
         # Search widges panel
         self.inputs = pn.Param(self.param,
