@@ -50,12 +50,12 @@ productOptions = {'NSIDC-0642': ['termini'],
 # Current versions, if versions updated at DAAC, will try later version
 versions = {'NSIDC-0723': '4', 'NSIDC-0725': '3', 'NSIDC-0727': '3',
             'NSIDC-0731': '3', 'NSIDC-0642': '2', 'NSIDC-0766': '1',
-            'NSIDC-0481': '3', 'NSIDC-0646': '3' 
+            'NSIDC-0481': '3', 'NSIDC-0646': '3'
             }
 defaultProduct = 'NSIDC-0725'
 
 productGroups = {'browse': ['browse'],
-                 'speed': ['vv'], '-': ['vv'],
+                 'speed': ['vv'], '-': ['vv'], 'vx': 'vx',
                  'velocity': ['vv', 'vx', 'vy'],
                  'velocity+errors': ['vv', 'vx', 'vy', 'ex', 'ey'],
                  'all': ['vv', 'vx', 'vy', 'ex', 'ey', 'browse', 'dT'],
@@ -118,7 +118,7 @@ class cmrUrls(param.Parameterized):
             [products[x] for x in modes[self.mode]['productIndexes']]
         self.param.set_param('product',
                              products[modes[self.mode]['productIndexes'][0]])
-     
+
         self.verbose = verbose
         #
         # Pick only 1 481 product by box name
@@ -131,7 +131,7 @@ class cmrUrls(param.Parameterized):
                 productGroups[x] = ['vv']
                 fileTypes[x] = ['.tif']
             for x in productOptions['NSIDC-0646']:
-                productGroups[x] = ['vv']
+                productGroups[x] = ['vx']
                 fileTypes[x] = ['.tif']
         # Subsetter modes only one option
         if not modes[self.mode]['cumulative']:
@@ -273,8 +273,7 @@ class cmrUrls(param.Parameterized):
         self.param.productFilter.objects = productOptions[self.product]
         if productFilter is None:
             productFilter = productOptions[self.product][0]
-        #print(productFilter, self.product)
-        #print(productOptions[self.product])
+        #
         self.param.set_param('productFilter', productFilter)
         # Reset lat/lon bounds
         for coord in ['LatMin', 'LatMax', 'LonMin', 'LonMax']:
@@ -309,19 +308,19 @@ class cmrUrls(param.Parameterized):
                                     autosize_mode='fit_columns')
 
     def TSXBoxNames(self, product='NSIDC-0481'):
-       ''' Get list of all TSX boxes'''
-       params = {'NSIDC-0481': 
-                     ('2009-01-01T00:00:01Z', '2029-01-01T00:00:01Z', 'TSX'),
-                 'NSIDC-0646':
-                     ('2009-01-01T00:00:01Z', '2010-01-01T00:00:01Z', 'OPT')}
-       date1, date2, pattern = params[product]
-       for i in range(0, 5):
-           TSXurls = grimp.get_urls(product,
-                                   str(int(versions[product]) + i),
-                                   date1, date2,
-                                   self.boundingBox(), None, '*')
-           if len(TSXurls) > 0:
-               return self.findTSXBoxes(urls=TSXurls, pattern=pattern)
+        ''' Get list of all TSX boxes'''
+        params = {'NSIDC-0481':
+                  ('2009-01-01T00:00:01Z', '2029-01-01T00:00:01Z', 'TSX'),
+                  'NSIDC-0646':
+                  ('2009-01-01T00:00:01Z', '2010-01-01T00:00:01Z', 'OPT')}
+        date1, date2, pattern = params[product]
+        for i in range(0, 5):
+            TSXurls = grimp.get_urls(product,
+                                     str(int(versions[product]) + i),
+                                     date1, date2,
+                                     self.boundingBox(), None, '*')
+            if len(TSXurls) > 0:
+                return self.findTSXBoxes(urls=TSXurls, pattern=pattern)
 
     def findTSXBoxes(self, urls=None, pattern='TSX'):
         ''' Return list of unique boxes for the cogs '''

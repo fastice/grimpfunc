@@ -27,7 +27,7 @@ def cmr_filter_urls(search_results):
                if 'links' in e]
     # Flatten "entries" to a simple list of links
     links = list(itertools.chain(*entries))
-
+    # print(len(links))
     urls = []
     unique_filenames = set()
     for link in links:
@@ -95,6 +95,7 @@ def get_urls(short_name, version, time_start, time_end, bounding_box, polygon,
         if verbose:
             print(query_url)
         search_results = query_cmr(query_url)
+        # print(search_results)
         urls += cmr_filter_urls(search_results)
         # Page not full so done
         if len(search_results['feed']['entry']) < CMR_PAGE_SIZE:
