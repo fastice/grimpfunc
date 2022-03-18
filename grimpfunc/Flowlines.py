@@ -337,7 +337,7 @@ class Flowlines():
         '''
         if indices is None:
             indices = self.flowlineIDs()
-        return {ID: (self.extractPoint(distance, ID, units='km'))
+        return {ID: (self.extractPoint(distance, ID, units=units))
                 for ID in indices}
 
     def genColorDict(self, flowlineIDs=None):
