@@ -15,7 +15,8 @@ import panel as pn
 modes = {'none': {'productIndexes': [0, 1, 2, 3, 4, 5, 6, 7],
                   'boxNames': False, 'cumulative': True,
                   'defaultProduct': 'NSIDC-0725'},
-         'subsetter': {'productIndexes': [ 1, 2, 3, 4, 5, 6, 7],
+
+         'subsetter': {'productIndexes': [1, 2, 3, 4, 5, 6, 7],
                        'boxNames': True, 'cumulative': False,
                        'defaultProduct': 'NSIDC-0725'},
          'nisar': {'productIndexes': [2, 3, 4, 5],
