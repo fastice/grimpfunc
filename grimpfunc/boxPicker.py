@@ -24,7 +24,7 @@ class boxPicker():
     ''' Pick a box on a SAR map '''
 
     def __init__(self, mapUrl=None, bbox=boxDefault, boxFile=None,
-                 localTiff=None, numWorkers=2):
+                 numWorkers=2):
         '''
         Init routine for a boxPicker
 
@@ -34,9 +34,11 @@ class boxPicker():
             url for base mape to show. The default is None, which loads a
             2020 map.
         bbox : dict, optional
-           Dictionary with bounding box. The default is boxDefault.
+           Dictionary with bounding box. The default is for Jakobshavn
         boxFile : str, optional
             File path in which to write box. The default is None.
+        numWorkers : int, optional
+            The number of dask workers. The default is 2.
         Returns
         -------
         None.
@@ -55,22 +57,22 @@ class boxPicker():
         except Exception:
             self.box = hv.streams.BoundsXY(bounds=tuple(boxDefault.values()))
         dask.config.set(num_workers=numWorkers)
-        
+
     def _getDefaultMap(self):
         ''' Get the latest version of a in image map '''
         version = 4
         # Increment version if not found
         for i in range(0, 5):
             urls = grimp.get_urls('NSIDC-0723', str(int(version) + i),
-                                 '2020-01-01T00:00:01Z', '2020-01-05T00:23:59',
-                                 None, None, '*image*')
+                                  '2020-01-01T00:00:01Z',
+                                  '2020-01-05T00:23:59',
+                                  None, None, '*image*')
             if len(urls) > 0:
                 return list(filter(lambda x: '.tif' in x, urls))[0]
         print('Warning could not find default map')
 
     def plotMap(self, show=True):
         ''' Plot the map'''
-        #print(self.mapUrl)
         option = '?list_dir=no'
         vsiCurl = f'/vsicurl/{option}&url={self.mapUrl}'
         #
@@ -81,7 +83,7 @@ class boxPicker():
         img = da.hvplot.image(rasterize=True, cmap='gray', x='x', y='y',
                               aspect='equal', frame_width=400,
                               title=os.path.basename(self.mapUrl)
-                              ).opts(active_tools=['box_select'])
+                              ).opts(tools=['box_select'])
         self.box.source = img
         bounds = hv.DynamicMap(lambda bounds: hv.Bounds(bounds),
                                streams=[self.box]).opts(color='red')

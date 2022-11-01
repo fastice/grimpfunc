@@ -66,10 +66,10 @@ class pointInspector():
         self.dtf = DatetimeTickFormatter(years="%Y")
         # Assumes data set has one var and possible a spatial_ref
         # This step avoids using the spatial ref
-        names = list(self.xArray.keys())
-        if 'spatial_ref' in names:
-            names.remove('spatial_ref')
-        self.name = names[0]
+        #names = list(self.xArray.keys())
+        #if 'spatial_ref' in names:
+       #     names.remove('spatial_ref')
+        self.name = xArray.name
         # print(self.name)
 
     def setNoDataValue(self, noData=None):
@@ -103,7 +103,7 @@ class pointInspector():
         ''' Plot the time series, filtering out no data values '''
         # get data and time values
         vOrig = self.xArray.sel(band=self.component).sel(
-            x=x, y=y, method='nearest')[self.name].values.flatten()
+            x=x, y=y, method='nearest').values.flatten()
         tOrig = self.xArray.time.values.flatten()
         t, v = self._removeNoData(tOrig, vOrig)
         # Plot points and lines- options need some work
@@ -144,24 +144,27 @@ class pointInspector():
             opts['title'] = kwargs['plotTitle']
         return opts
 
-    def view(self, component='vv', mapTitle=None, ncols=1, **kwargs):
+    def view(self, component='vv', mapTitle=None, ncols=2, time=None, **kwargs):
         ''' Setup and return plot '''
         self.component = component
         self.setNoDataValue(None)
         self.plotOptions = self._plotOpts(component, **kwargs)
         self.imgOptions = self._imgOpts(component, **kwargs)
         # Default titles
-        if mapTitle is None:
-            mapTitle = component
+ 
         # Setup the image plot.
-        img = self.xArray[self.name].sel(band=self.component,
-                                         time=self.bounds['maxt'])
+        if time is None:
+            time = self.bounds['maxt']
+        if mapTitle is None:
+            mapTitle = 'xxx' #component + time
+        img = self.xArray.sel(band=self.component,
+                                         time=time)
         imgPlot = img.hvplot.image(rasterize=True, aspect='equal',
                                    title=mapTitle).opts(
-            active_tools=['point_draw'], **self.imgOptions)
+                                       active_tools=['point_draw'],
+                                       **self.imgOptions)
         # Setup up the time series plot
-        points = hv.Points(([self.xc], [self.yc]),
-                           ).opts(size=6, color='red')
+        points = hv.Points(([self.xc], [self.yc]), ).opts(size=6, color='red')
         pointer = hv.streams.PointDraw(source=points,
                                        data=points.columns(), num_objects=1)
         # Create the dynamic map

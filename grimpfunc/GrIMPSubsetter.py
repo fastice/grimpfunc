@@ -14,7 +14,6 @@ import pandas as pd
 # from dask.diagnostics import ProgressBar
 # ProgressBar().register()
 import stackstac
-import numpy as np
 import rio_stac
 import pystac
 
@@ -61,20 +60,27 @@ class GrIMPSubsetter():
         self.subset = None
         self.dtype = None
         self.bands = self._checkBands(bands)
+        self.noDataDict =  {'vx': -2.0e9, 'vy': -2.0e9, 'vv': -1.0,
+                           'ex': -1.0, 'ey': -1.0, 'image': 0, 'gamma0': -30.,
+                           'sigma0': -30.}
         dask.config.set(num_workers=numWorkers)
+        print('Depricated: Uses nisarVel, nisarVelSeries, nisarImage, or '
+              'nisarImageSeries')
 
     def get_stac_item_template(self, URLs):
         '''
         read first geotiff to get STAC Item template (returns pystac.Item)
         '''
         template = bandsDict[self.bands[0]]['template']
-        first_url = URLs[0].replace(template, self.bands[0])
+        first_url = URLs[0].replace(template, self.bands[0]) 
+        print(first_url)
         productType = bandsDict[self.bands[0]]['name']
         index1 = productTypeDict[productType]['index1']
         index2 = productTypeDict[productType]['index2']
         date, _ = self.datesFromGrimpName(os.path.basename(first_url),
                                           index1=index1, index2=index2)
         # collection = first_url.split('/')[-3],
+        fill_values = [self.noDataDict[band] for band in self.bands]
         item = rio_stac.create_stac_item(first_url,
                                          input_datetime=date,
                                          asset_media_type=str(
@@ -104,6 +110,7 @@ class GrIMPSubsetter():
         ITEMS = []
         for url in URLs:
             item = item_template.clone()
+            print('.',end='')
             # works with single asset per item datasets (e.g. only gamma0 urls)
             item.id = os.path.basename(url)
             productType = bandsDict[self.bands[0]]['name']
@@ -126,7 +133,9 @@ class GrIMPSubsetter():
 
     def lazy_open_stackstac(self, items):
         ''' return stackstac xarray dataarray '''
+        fill_values = [self.noDataDict[band] for band in self.bands]
         da = stackstac.stack(items,
+                             fill_value=0,
                              assets=self.bands,
                              chunksize=CHUNKSIZE,
                              # NOTE: use native projection, match rioxarray
@@ -157,11 +166,29 @@ class GrIMPSubsetter():
         date2 = filename.split('_')[index2]
         return pd.to_datetime(date1), pd.to_datetime(date2)
 
-    @dask.delayed
-    def lazy_open(self, url, masked=False):
-        ''' Lazy open of a single url '''
+    #@dask.delayed
+    def lazy_open(self, url, masked=True, chunkSize=512):
+        '''
+        Lazy open of a single url
+
+        Parameters
+        ----------
+        url : str
+            url name.
+        masked : boolean, optional
+            Masked flag to xarray The default is False.
+        chunkSize : int, optional
+            Chunk size. The default is 512.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        '''
         # print(href)
         das = []
+        chunks = {'band': 1, 'y': chunkSize, 'x': chunkSize}
         for band in self.bands:
             productType = bandsDict[band]['name']
             template = bandsDict[band]['template']
@@ -176,10 +203,9 @@ class GrIMPSubsetter():
             # swap temnplate for other bands
                 url = f'/vsicurl/{option}&url={url}'
             # create rioxarry
-            da = rioxarray.open_rasterio(url, lock=False,
+            da = rioxarray.open_rasterio(url, lock=True,
                                          default_name=bandsDict[band]['name'],
-                                         chunks=dict(band=1,
-                                                     y=CHUNKSIZE, x=CHUNKSIZE),
+                                         chunks=chunks,
                                          masked=masked).rename(
                                              band='band')
             da['band'] = [band]
@@ -218,16 +244,17 @@ class GrIMPSubsetter():
         items = self.construct_stac_items(self.urls)
         self.DA = self.lazy_open_stackstac(items)
 
-    def loadDataArray(self, bands=None):
+    def loadDataArray(self, bands=None, chunkSize=512):
         ''' Load and concatenate arrays to create a rioxArray with coordinates
         time, band, y, x'''
         # NOTE: can have server-size issues w/ NSIDC if going above 15 threads
         # if psutil.cpu_count() > 15: num_threads = 12
         self.bands = self._checkBands(bands)
-        with dask.config.set({'scheduler': 'threads', 'num_workers': 4}):
+        with dask.config.set({'scheduler': 'threads', 'num_workers': 2}):
             # if self.urls is not None:
             self.dataArrays = dask.compute(
-                *[self.lazy_open(url, masked=False) for url in self.urls])
+                *[self.lazy_open(url, masked=False, chunkSize=chunkSize)
+                  for url in self.urls])
         # Concatenate along time dimensions
         self.DA = xr.concat(self.dataArrays, dim='time', join='override',
                             combine_attrs='drop')
@@ -257,6 +284,12 @@ class GrIMPSubsetter():
             cdfFile = f'{cdfFile}.nc'
         if os.path.exists(cdfFile):
             os.remove(cdfFile)
+        for x in self.subset.coords:
+            if 'proj' in x or 'raster' in x or 'spec' in x:
+                self.subset = self.subset.drop(x, dim=None)
+        for x in self.subset.attrs:
+            if 'spec' in x:
+                self.subset = self.subset.drop(x, dim=None)
         # To many workers can cause a failure
         with dask.config.set({'scheduler': 'threads',
                               'num_workers': numWorkers}):
