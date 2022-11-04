@@ -54,7 +54,6 @@ class NASALogin(param.Parameterized):
         super().__init__()
         self.requestPath = requestPath
         # setup for password widget
-        # print(cookiePath)
         self.cookie_jar_path = os.path.expanduser(f'{cookiePath}/{cookieFile}')
         # print(self.cookie_jar_path)
         self.msg = ''
