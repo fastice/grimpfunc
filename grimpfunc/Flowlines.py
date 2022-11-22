@@ -196,67 +196,53 @@ class Flowlines():
                 return [x*0.001 for x in result]
         return convertKM
 
-    def xym(self, index=None):
+    def xy(self, index=None, units='m'):
         '''
-        Return the x and y flowline coordinates in meters
+        Return the x and y flowline coordinates in meters or km (units)
         Parameters
         ----------
         index : str, optional
             Index of flowline, defaults to the first flowline for if None.
+        units :  str, optional
+            Units in 'm' or 'km', default is 'm'
         Returns
         -------
         np.array, np.array
             x, y in coordinates in m
         '''
+        # Return None if bad units
+        if not self.checkUnits(units):
+            return None
+        # select flowline
         if index is None:
             index = list(self.flowlines)[0]
-        return self.flowlines[index]['x'], self.flowlines[index]['y']
+        # compute scale and return
+        scale = {'m': 1, 'km': 0.001}[units]
+        return self.flowlines[index]['x'] * scale, \
+            self.flowlines[index]['y'] * scale
 
-    @_toKm
-    def xykm(self, index=None):
+    def flowlineDistance(self, index=None, units='m'):
         '''
-        Return the x and y flowline coordinates in KILOmeters
-        Parameters
+        Return the distance along a flowline in m or km (units)
         ----------
         index : str, optional
             Index of flowline, defaults to the first flowline for if None.
+        units :  str, optional
+            Units in 'm' or 'km', default is 'm'
         Returns
         -------
         np.array, np.array
-            x, y in coordinates in km
+            x, y in coordinates in m
         '''
-        return self.xym(index=index)
-
-    def distancem(self, index=None):
-        '''
-        Return the distance along a flowline in m.
-        Parameters
-        ----------
-        index : str, optional
-            Index of flowline, defaults to the first flowline for if None.
-        Returns
-        -------
-        np.array
-            distance along a flowline.
-        '''
+        # Return None if bad units
+        if not self.checkUnits(units):
+            return None
+        # select flowline
         if index is None:
             index = list(self.flowlines)[0]
-        return self.flowlines[index]['d']
-
-    @_toKm
-    def distancekm(self, index=None):
-        '''
-        Return the distance along a flowline in KILOmeters.
-        Parameters
-        ----------
-        index : str, optional
-            Index of flowline, defaults to the first flowline for if None.
-        Returns
-        -------
-        np.array
-            distance along a flowline.
-        '''
-        return self.distancem(index=index)
+        # compute scale and return
+        scale = {'m': 1, 'km': 0.001}[units]
+        return self.flowlines[index]['d'] * scale
 
     def plotGlacierName(self, ax=plt, units='m', index=None, first=True,
                         xShift=0, yShift=0, **kwargs):
@@ -287,7 +273,7 @@ class Flowlines():
         if not self.checkUnits(units):
             return
         #
-        x, y = getattr(self, f'xy{units}')(index=index)
+        x, y = self.xy(index=index, units=units)
         if first:
             xL, yL, hAlign = x[0], y[0], 'right'
         else:
@@ -313,10 +299,10 @@ class Flowlines():
         x, y : coordinates of point.
 
         '''
-        i = np.argmin(np.abs(getattr(self, f'distance{units}')(index=index) -
+        i = np.argmin(np.abs(self.flowlineDistance(index=index, units=units) -
                              distance))
         #
-        x, y = getattr(self, f'xy{units}')(index=index)
+        x, y = self.xy(index=index, units=units)
         return x[i], y[i]
 
     def extractPoints(self, distance, indices=None, units='m'):
@@ -405,5 +391,5 @@ class Flowlines():
             indices = [indices]
         # plot lines
         for index in indices:
-            ax.plot(*getattr(self, f'xy{units}')(index=index),
+            ax.plot(*self.xy(index=index, units=units),
                     color=colorDict[index], label=index, **kwargs)
