@@ -17,13 +17,13 @@ class Flowlines():
     shapeParsers = {'felikson': 'parseFelikson'}
 
     def __init__(self, shapefile=None, name=None, shapeFormat='felikson',
-                 length=None, epsg=3413, sourceEpsg=None):
+                 length=None, epsg=3413, sourceEpsg=None, altParser=None):
         self.flowlines = {}
         self.xforms = {}
         self.name = name
         self.setEpsg(epsg)
         if shapefile is not None:
-            self.readShape(shapefile, shapeFormat=shapeFormat)
+            self.readShape(shapefile, shapeFormat=shapeFormat, altParser=altParser)
             self.truncate(None, length=length)
 
     def setEpsg(self, epsg):
@@ -32,7 +32,7 @@ class Flowlines():
         self.epgs = epsg
 
     def readShape(self, shapefile, length=None, pad=10e3, reuse=False,
-                  shapeFormat='felikson', sourceEpsg=None):
+                  shapeFormat='felikson', sourceEpsg=None, altParser=None):
         '''
         Read a flowline shape file and return a dict with entries:
         {index: {'x': [], 'y': [], 'd': []}
@@ -59,7 +59,10 @@ class Flowlines():
         if not reuse:
             self.shapeTable = gpd.read_file(shapefile)
         self.flowlines = {}
-        getattr(self, self.shapeParsers[shapeFormat])()
+        if altParser is None:
+            getattr(self, self.shapeParsers[shapeFormat])()
+        else:
+            self.flowlines = altParser(self, self.shapeTable)
         self.computeBounds(pad=pad)
 
     def flowlineIDs(self):
