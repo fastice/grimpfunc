@@ -108,7 +108,7 @@ class cmrUrls(param.Parameterized):
 
     def __init__(self, mode='none', debug=False, date1=None, date2=None,
                  verbose=False):
-        super().__init__()
+       
         #
         self.mode = mode.lower()
         #
@@ -143,6 +143,8 @@ class cmrUrls(param.Parameterized):
         self.param.product.objects = \
             [self.param.product.objects[x]
              for x in modes[self.mode]['productIndexes']]
+        #
+        super().__init__()
         # Init variables
         self.first = True
         self.cogs = []
