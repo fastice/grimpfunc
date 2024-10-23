@@ -49,8 +49,8 @@ productOptions = {'NSIDC-0642': ['termini'],
                   'NSIDC-0646': velocityOptions[1:]
                   }
 # Current versions, if versions updated at DAAC, will try later version
-versions = {'NSIDC-0723': '4', 'NSIDC-0725': '4', 'NSIDC-0727': '4',
-            'NSIDC-0731': '4', 'NSIDC-0642': '2', 'NSIDC-0766': '2',
+versions = {'NSIDC-0723': '4', 'NSIDC-0725': '5', 'NSIDC-0727': '5',
+            'NSIDC-0731': '5', 'NSIDC-0642': '2', 'NSIDC-0766': '2',
             'NSIDC-0481': '3', 'NSIDC-0646': '3'
             }
 defaultProduct = 'NSIDC-0725'
