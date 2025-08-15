@@ -26,7 +26,7 @@ rioxarray = { version= "*", optional = true }
 rio-stac = { version= "*", optional = true }
 stackstac = { version= "*", optional = true }
 xarray = { version= "*", optional = true }
-
+shapely = { version= "*", optional = true }
 # NOTE: qgis not on pypi, just conda-forge
 # qgis = { version = "3.18", optional = true }
 #[tool.poetry.extras]
