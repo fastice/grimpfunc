@@ -75,6 +75,7 @@ class boxPicker():
         ''' Plot the map'''
         option = '?list_dir=no'
         vsiCurl = f'/vsicurl/{option}&url={self.mapUrl}'
+        #print(vsiCurl)
         #
         da = rioxarray.open_rasterio(vsiCurl, overview_level=3,
                                      parse_coordinates=True,

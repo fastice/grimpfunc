@@ -295,8 +295,8 @@ class NASALogin(param.Parameterized):
         '''
         Set params with user name and password rather than use login panel
         '''
-        self.param.set_param('username', credential['login'])
-        self.param.set_param('password', credential['password'])
+        self.param.update(username=credential['login'])
+        self.param.update(password=credential['password'])
         
     def updateNetrc(self):
         ''' Update or create new ~/.netrc to include user name and passwd '''

@@ -12,7 +12,7 @@ import itertools
 CMR_URL = 'https://cmr.earthdata.nasa.gov'
 URS_URL = 'https://urs.earthdata.nasa.gov'
 CMR_PAGE_SIZE = 2000
-CMR_FILE_URL = (f'{CMR_URL}/search/granules.json?provider=NSIDC_ECS'
+CMR_FILE_URL = (f'{CMR_URL}/search/granules.json?provider=NSIDC_CPRD'
                 f'&sort_key[]=start_date&sort_key[]=producer_granule_id'
                 f'&scroll=false&page_size={CMR_PAGE_SIZE}')
 
@@ -99,4 +99,4 @@ def get_urls(short_name, version, time_start, time_end, bounding_box, polygon,
         urls += cmr_filter_urls(search_results)
         # Page not full so done
         if len(search_results['feed']['entry']) < CMR_PAGE_SIZE:
-            return urls
+            return [str(x) for x in urls]

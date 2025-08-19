@@ -35,6 +35,31 @@ products = ['NSIDC-0642',
             'NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731', 'NSIDC-0766',
             'NSIDC-0481', 'NSIDC-0646']
 
+TSXBoxes = ['E61.10N', 'E61.70N', 'E62.10N', 'E62.55N', 'E63.00N', 'E63.35N',
+            'E63.85N', 'E64.35N', 'E64.65N', 'E65.10N', 'E65.55N', 'E66.50N',
+            'E66.60N', 'E66.90N', 'E67.55N', 'E68.50N', 'E68.80N', 'E71.75N',
+            'E78.90N', 'E79.40N', 'E81.35N', 'E81.45N', 'S44.84W', 'S45.43W',
+            'S46.31W', 'S46.91W', 'W61.70N', 'W62.10N', 'W64.25N', 'W64.75N',
+            'W67.05N', 'W68.60N', 'W69.10N', 'W69.95N', 'W70.55N', 'W70.90N', 
+            'W71.65N', 'W72.00N', 'W72.90N', 'W73.45N', 'W73.75N', 'W74.50N',
+            'W74.95N', 'W75.50N', 'W75.85N', 'W76.10N', 'W76.25N', 'W76.35N',
+            'W76.40N', 'W76.45N', 'W77.55N', 'W79.75N', 'W80.75N', 'W81.25N',
+            'W81.50N']
+
+OPTBoxes = ['E61.10N', 'E61.70N', 'E62.10N', 'E62.55N', 'E63.00N', 'E63.35N',
+            'E63.85N', 'E64.35N', 'E64.65N', 'E65.10N', 'E65.55N', 'E66.00N',
+            'E66.50N', 'E66.60N', 'E66.90N', 'E67.55N', 'E68.05N', 'E68.50N',
+            'E68.52N', 'E68.75N', 'E68.80N', 'E68.95N', 'E69.30N', 'E69.80N',
+            'E69.90N', 'E70.10N', 'E70.40N', 'E71.05N', 'E71.75N', 'E71.95N',
+            'E74.05N', 'E75.15N', 'E75.70N', 'E76.55N', 'E77.55N', 'E78.95N',
+            'E79.40N', 'S44.15W', 'S44.84W', 'S45.43W', 'S46.31W', 'S46.91W',
+            'W61.30N', 'W61.70N', 'W62.10N', 'W63.05N', 'W64.25N', 'W64.75N',
+            'W67.95N', 'W69.10N', 'W69.95N', 'W70.55N', 'W70.90N', 'W71.25N',
+            'W71.65N', 'W72.00N', 'W72.90N', 'W73.45N', 'W73.75N', 'W74.50N',
+            'W74.95N', 'W75.50N', 'W75.85N', 'W76.10N', 'W76.25N', 'W76.30N',
+            'W76.33N', 'W76.35N', 'W76.40N', 'W76.45N', 'W77.55N', 'W77.80N',
+            'W79.75N', 'W80.75N']
+
 velocityMosaics = ['NSIDC-0725', 'NSIDC-0727', 'NSIDC-0731', 'NSIDC-0766']
 
 velocityOptions = ['browse', 'speed', 'velocity', 'velocity+errors', 'all']
@@ -111,23 +136,23 @@ class cmrUrls(param.Parameterized):
         super().__init__()
         #
         self.mode = mode.lower()
-        #
-        self.param.set_param('product', modes[self.mode]['defaultProduct'])
-        self.setProductOptions()
-        #
         self.validProducts = \
             [products[x] for x in modes[self.mode]['productIndexes']]
-        self.param.set_param('product',
-                             products[modes[self.mode]['productIndexes'][0]])
+        #
+        self.param.update(product=modes[self.mode]['defaultProduct'])
+        self.setProductOptions()
+        #
+        
+        #self.param.update(
+       #     product=products[modes[self.mode]['productIndexes'][0]])
 
         self.verbose = verbose
         #
         # Pick only 1 481 product by box name
         if modes[self.mode]['boxNames']:
             if modes[self.mode]['boxNames']:
-                productOptions['NSIDC-0481'] = self.TSXBoxNames()
-                productOptions['NSIDC-0646'] = self.TSXBoxNames(product=
-                                                                'NSIDC-0646')
+                productOptions['NSIDC-0481'] = TSXBoxes
+                productOptions['NSIDC-0646'] = OPTBoxes
             for x in productOptions['NSIDC-0481']:
                 productGroups[x] = ['vv']
                 fileTypes[x] = ['.tif']
@@ -143,8 +168,6 @@ class cmrUrls(param.Parameterized):
         self.param.product.objects = \
             [self.param.product.objects[x]
              for x in modes[self.mode]['productIndexes']]
-        #
-        
         # Init variables
         self.first = True
         self.cogs = []
@@ -179,7 +202,7 @@ class cmrUrls(param.Parameterized):
     def getIDs(self):
         ''' Get the unique list of ids from the cog and shape files'''
         files = self.getCogs() + self.getShapes()
-        fileIDs = [x.split('/')[-3].split('.')[0] for x in files]  # Find ids
+        fileIDs = [x.split('/')[-6].split('.')[0] for x in files]  # Find ids
         return np.unique(fileIDs)  # Return the unique ids
 
     @param.depends('Clear', watch=True)
@@ -211,11 +234,12 @@ class cmrUrls(param.Parameterized):
         newUrls = self.getURLS()
         self.msg = len(newUrls)
         # append list. Use unique to avoid selecting same data set
-        self.urls = list(np.unique(newUrls + self.urls))
+        self.urls = [str(x) for x in np.unique(newUrls + self.urls)]
         self.nUrls = len(self.urls)
         self.updateProducts(newUrls)
         self.results = pd.DataFrame(zip(self.dates, self.productList),
-                                    columns=['date', 'product'])
+                                    columns=['date', 'product']
+                                    ).sort_values(by='date')
         # reset get Data
         self.Search = False
 
@@ -229,7 +253,9 @@ class cmrUrls(param.Parameterized):
                 if fileType in url:
                     productName = url.split('/')[-1]
                     self.productList.append(productName)
-                    self.dates.append(url.split('/')[-2])
+                    # self.dates.append(url.split('/')[-2])
+                    m, y, d  = [int(x) for x in url.split('/')[6:9]]
+                    self.dates.append(f'{y:4}-{m:02d}-{d:02d}')
         self.productList, uIndex = np.unique(self.productList,
                                              return_index=True)
         self.productList = list(self.productList)
@@ -246,6 +272,8 @@ class cmrUrls(param.Parameterized):
         ''' Get list of URLs for the product '''
         dateFormat1, dateFormat2 = '%Y-%m-%dT00:00:01Z', '%Y-%m-%dT00:23:59'
         version = versions[self.product]  # Current Version for product
+        
+   
         polygon = None
         bounding_box = self.boundingBox()
         pattern = '*'
@@ -277,7 +305,7 @@ class cmrUrls(param.Parameterized):
         if productFilter is None:
             productFilter = productOptions[self.product][0]
         #
-        self.param.set_param('productFilter', productFilter)
+        self.param.update(productFilter=productFilter)
         # Reset lat/lon bounds
         for coord in ['LatMin', 'LatMax', 'LonMin', 'LonMax']:
             if self.product not in ['NSIDC-0481', 'NSIDC-0646']:
@@ -307,8 +335,14 @@ class cmrUrls(param.Parameterized):
         self.LonMin.value = min(self.LonMin.value, self.LonMax.value - 1.)
 
     def result_view(self):
-        return pn.widgets.DataFrame(self.results, height=600,
-                                    autosize_mode='fit_columns')
+        return pn.widgets.DataFrame(
+          self.results,
+          height=600,             # fixed height
+          sizing_mode="fixed",    # keep the widget width fixed in the layout
+          show_index=False,
+          fit_columns=False,       # auto-fit each column to its content
+          widths={'date': 100, 'product':500}
+          )
 
     def TSXBoxNames(self, product='NSIDC-0481'):
         ''' Get list of all TSX boxes'''
@@ -421,9 +455,9 @@ class cmrUrls(param.Parameterized):
         '''
         try:
             if firstDate is not None:
-                self.param.set_param('firstDate', self._formatDate(firstDate))
+                self.param.update(firstDate=self._formatDate(firstDate))
             if lastDate is not None:
-                self.param.set_param('lastDate', self._formatDate(lastDate))
+                self.param.update(lastDate=self._formatDate(lastDate))
         except Exception:
             print(f'Invalid Date(s): {firstDate} and/or {lastDate}')
             print('Use "YYYY-MM-DD"')
@@ -440,7 +474,7 @@ class cmrUrls(param.Parameterized):
         if not self._checkParam(product, self.validProducts, 'product'):
             return
         if product is not None:
-            self.param.set_param('product', product)
+            self.param.update(product=product)
         # check productFilter
         if not self._checkParam(productFilter,
                                 self.param.productFilter.objects,
