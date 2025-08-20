@@ -10,23 +10,25 @@ repository = "https://github.com/fastice/grimpfunc"
 keywords = ["SAR", "NSIDC", "Holoviz"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
-dask = { version= "*", optional = true }
-pandas = { version= "*", optional = true }
-Progressbar2 = { version= "*", optional = true }
-holoviews = { version= "*", optional = true }
-hvplot = { version= "*", optional = true }
-numpy = { version= "*", optional = true }
+# Its best to handle these through the enviroment file at
+# https://github.com/fastice/GrIMPNotebooks/blob/master/binder/environment.yml
+#python = "^3.8"
+#dask = { version= "*", optional = true }
+#pandas = { version= "*", optional = true }
+#Progressbar2 = { version= "*", optional = true }
+#holoviews = { version= "*", optional = true }
+#hvplot = { version= "*", optional = true }
+#numpy = { version= "*", optional = true }
 # Panel/param pinned because new versions failed on 11/22/23 even examples on the panel website
-panel = { version= "*", optional = true }
-param = { version= "*", optional = true }
-pystac = { version= "*", optional = true }
-requests = { version= "*", optional = true }
-rioxarray = { version= "*", optional = true }
-rio-stac = { version= "*", optional = true }
-stackstac = { version= "*", optional = true }
-xarray = { version= "*", optional = true }
-shapely = { version= "*", optional = true }
+#panel = { version= "*", optional = true }
+#param = { version= "*", optional = true }
+#pystac = { version= "*", optional = true }
+#requests = { version= "*", optional = true }
+#rioxarray = { version= "*", optional = true }
+#rio-stac = { version= "*", optional = true }
+#stackstac = { version= "*", optional = true }
+#xarray = { version= "*", optional = true }
+#shapely = { version= "*", optional = true }
 # NOTE: qgis not on pypi, just conda-forge
 # qgis = { version = "3.18", optional = true }
 #[tool.poetry.extras]
