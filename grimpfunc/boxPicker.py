@@ -89,7 +89,7 @@ class boxPicker():
         bounds = hv.DynamicMap(lambda bounds: hv.Bounds(bounds),
                                streams=[self.box]).opts(color='red')
         if show:
-            mapview = pn.Column(img * bounds)
+            mapview = pn.Column(img * bounds).servable()
         else:
             mapview = None
         return mapview
