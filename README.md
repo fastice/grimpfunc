@@ -11,4 +11,6 @@ In an existing python virtual environment: `pip install git+https://github.com/f
 
 ## Release Notes
 
-0.0.6  2025-08-20  Updated to fix issues with NSIDC migration of data sets to cloud 
+**0.0.7  2025-09-03**  Minor fixes.
+
+**0.0.6  2025-08-20**  Updated to fix issues with NSIDC migration of data sets to cloud.
