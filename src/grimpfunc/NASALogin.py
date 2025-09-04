@@ -15,6 +15,7 @@ from http.cookiejar import MozillaCookieJar
 import param
 import panel as pn
 import time
+import netrc
 
 site = 'urs.earthdata.nasa.gov'
 
@@ -59,6 +60,7 @@ class NASALogin(param.Parameterized):
         self.msg = ''
         self.errorMsg = '                            '
         self.updateStatusMessage()
+        self.site = site
 
     @param.depends('enterCredential', watch=True)
     def getCredentials(self, gui=True, updateNetRC=True):
@@ -270,26 +272,37 @@ class NASALogin(param.Parameterized):
         return pn.pane.Markdown(self.errorMsg, style={'color': 'red'},
                                 width=250)
 
+
     def checkNetrc(self, password=None, username=None, setCredential=False):
-        # Start with blank or existing lines
-        if os.path.exists(self.netrcFile):
-            with open(self.netrcFile, 'r') as fpIn:
-                for line in fpIn:
-                    if site in line and self.username in line:
-                        # Case where not known
-                        if password is None and  username is None:
-                            # Set param values
-                            if setCredential: 
-                                parts = line.split()
-                                credential = dict(
-                                    zip([parts[x] for x in [0, 2, 4]],
-                                        [parts[x] for x in [1, 3, 5]]))
-                                print('Getting login from ~/.netrc')
-                                self.setCredential(credential)
-                            return True
-                        elif password in line and username in line:
-                            return True
-        return False
+       # return False if not netrc
+       if not os.path.exists(self.netrcFile):
+           return False
+       # parse file with netrc
+       try:
+           auths = netrc.netrc(self.netrcFile)
+       except Exception as e:
+           print(f"Error parsing {self.netrcFile}: {e}")
+           return False
+       # 'site' should be the machine name you're looking for
+       if not hasattr(self, "site"):
+           raise ValueError("self.site must be defined for checkNetrc")
+       # see if it has what we are looking for, if not return
+       creds = auths.authenticators(self.site)
+       if creds is None:
+           return False
+       
+       login, account, passwd = creds  # account is often None
+       
+       if password is None and username is None and setCredential:
+           print("Getting login from ~/.netrc")
+           self.setCredential({"machine": self.site,
+                               "login": login,
+                               "password": passwd})
+           return True
+       elif login == username and passwd == password:
+           return True
+       
+       return False
     
     def setCredential(self, credential):
         '''
