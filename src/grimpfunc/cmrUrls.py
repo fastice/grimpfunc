@@ -40,7 +40,7 @@ TSXBoxes = ['E61.10N', 'E61.70N', 'E62.10N', 'E62.55N', 'E63.00N', 'E63.35N',
             'E66.60N', 'E66.90N', 'E67.55N', 'E68.50N', 'E68.80N', 'E71.75N',
             'E78.90N', 'E79.40N', 'E81.35N', 'E81.45N', 'S44.84W', 'S45.43W',
             'S46.31W', 'S46.91W', 'W61.70N', 'W62.10N', 'W64.25N', 'W64.75N',
-            'W67.05N', 'W68.60N', 'W69.10N', 'W69.95N', 'W70.55N', 'W70.90N', 
+            'W67.05N', 'W68.60N', 'W69.10N', 'W69.95N', 'W70.55N', 'W70.90N',
             'W71.65N', 'W72.00N', 'W72.90N', 'W73.45N', 'W73.75N', 'W74.50N',
             'W74.95N', 'W75.50N', 'W75.85N', 'W76.10N', 'W76.25N', 'W76.35N',
             'W76.40N', 'W76.45N', 'W77.55N', 'W79.75N', 'W80.75N', 'W81.25N',
@@ -142,10 +142,8 @@ class cmrUrls(param.Parameterized):
         self.param.update(product=modes[self.mode]['defaultProduct'])
         self.setProductOptions()
         #
-        
-        #self.param.update(
-       #     product=products[modes[self.mode]['productIndexes'][0]])
-
+        # self.param.update(
+        #     product=products[modes[self.mode]['productIndexes'][0]])
         self.verbose = verbose
         #
         # Pick only 1 481 product by box name
@@ -182,11 +180,11 @@ class cmrUrls(param.Parameterized):
     # initialize with empty list
 
     def getCogs(self, replace=None, removeTiff=False):
-        cogs  = [x for x in self.urls if x.endswith('.tif')]
+        cogs = [x for x in self.urls if x.endswith('.tif')]
         if removeTiff:
-            cogs  = [x.replace('.tif', '') for x in cogs]
+            cogs = [x.replace('.tif', '') for x in cogs]
         if replace is not None:
-            cogs  = [x.replace(replace, '*') for x in cogs]
+            cogs = [x.replace(replace, '*') for x in cogs]
         return cogs
 
     def getShapes(self):
@@ -254,7 +252,7 @@ class cmrUrls(param.Parameterized):
                     productName = url.split('/')[-1]
                     self.productList.append(productName)
                     # self.dates.append(url.split('/')[-2])
-                    m, y, d  = [int(x) for x in url.split('/')[6:9]]
+                    m, y, d = [int(x) for x in url.split('/')[6:9]]
                     self.dates.append(f'{y:4}-{m:02d}-{d:02d}')
         self.productList, uIndex = np.unique(self.productList,
                                              return_index=True)
@@ -272,8 +270,7 @@ class cmrUrls(param.Parameterized):
         ''' Get list of URLs for the product '''
         dateFormat1, dateFormat2 = '%Y-%m-%dT00:00:01Z', '%Y-%m-%dT00:23:59'
         version = versions[self.product]  # Current Version for product
-        
-   
+        #
         polygon = None
         bounding_box = self.boundingBox()
         pattern = '*'
@@ -335,14 +332,13 @@ class cmrUrls(param.Parameterized):
         self.LonMin.value = min(self.LonMin.value, self.LonMax.value - 1.)
 
     def result_view(self):
-        return pn.widgets.DataFrame(
-          self.results,
-          height=600,             # fixed height
-          sizing_mode="fixed",    # keep the widget width fixed in the layout
-          show_index=False,
-          fit_columns=False,       # auto-fit each column to its content
-          widths={'date': 100, 'product':500}
-          )
+        return pn.widgets.DataFrame(self.results,
+                                    height=600,   # fixed height
+                                    sizing_mode="fixed",
+                                    show_index=False,
+                                    fit_columns=False,
+                                    widths={'date': 100, 'product': 500}
+                                    )
 
     def TSXBoxNames(self, product='NSIDC-0481'):
         ''' Get list of all TSX boxes'''
@@ -405,7 +401,9 @@ class cmrUrls(param.Parameterized):
                          'productFilter': pn.widgets.Select,
                          'firstDate': pn.widgets.DatePicker,
                          'lastDate': pn.widgets.DatePicker,
-                         'Search': pn.widgets.Button}
+                         'Search':  {'type': pn.widgets.Toggle,
+                                     'button_type': 'primary'}
+                         }
 
         names = [names[x] for x in modes[self.mode]['productIndexes']]
         # Clear precedence ensures this won't plot in subsetter mode
@@ -433,7 +431,7 @@ class cmrUrls(param.Parameterized):
         panels += [infoPanel]
         return pn.Row(pn.Column(*panels, min_width=leftWidth),
                       pn.Column(self.result_view, self.displayProductCount,
-                                self.debugMessage))
+                                self.debugMessage)).servable()
 
     def _formatDate(self, myDate):
         return datetime.strptime(myDate, '%Y-%m-%d').date()

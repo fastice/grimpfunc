@@ -37,3 +37,6 @@ Upload to a server to install via pixi or conda-forge
 ```
 pixi upload https://prefix.dev/api/v1/upload/uw-cryo grimpfunc-0.1.0-pyh4616a5c_0.conda
 ```
+**0.0.7  2025-09-03**  Minor fixes.
+
+**0.0.6  2025-08-20**  Updated to fix issues with NSIDC migration of data sets to cloud.
