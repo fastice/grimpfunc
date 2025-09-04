@@ -3,12 +3,13 @@ name = "grimpfunc"
 description = "Utility classes and functions to work with GrIMP data hosted by NASA NSIDC."
 version = "0.1.0"
 authors = [
-    { name = "Scott Henderson", email = "3924836+scottyhq@users.noreply.github.com" },
     { name = "Ian Joughin" },
+    { name = "Scott Henderson", email = "3924836+scottyhq@users.noreply.github.com" }
 ]
 requires-python = ">= 3.11"
 
 dependencies = [
+    "dask",
     "geopandas",
     "holoviews",
     "hvplot",
@@ -36,6 +37,7 @@ grimpfunc = { path = ".", editable = true }
 [tool.pixi.tasks]
 
 [tool.pixi.dependencies]
+dask = "*"
 geopandas = "*"
 holoviews = "*"
 hvplot = "*"
@@ -56,6 +58,7 @@ version = "==0.3.2"
 hatchling = "*"
 
 [tool.pixi.package.run-dependencies]
+dask = "*"
 geopandas = "*"
 holoviews = "*"
 hvplot = "*"
