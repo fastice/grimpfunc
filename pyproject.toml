@@ -1,15 +1,14 @@
 [project]
+name = "grimpfunc"
+version = "0.1.0"
 authors = [{name = "Scott Henderson", email = "3924836+scottyhq@users.noreply.github.com"},
             {name = "Ian Joughin"}]
-
-name = "grimpfunc"
 requires-python = ">= 3.11"
-version = "0.1.0"
 dependencies = [
 "geopandas<2",
 "holoviews<2",
 "hvplot<0.13",
-"matplotlib-base<4",
+"matplotlib<4",
 "panel<2",
 "requests<3",
 "rioxarray<1",
