@@ -32,10 +32,18 @@ channels = ["conda-forge"]
 platforms = ["osx-arm64", "linux-64"]
 preview = ["pixi-build"]
 
+[tool.pixi.environments]
+default = {features = [], solve-group = "default"}
+dev = { features = ["dev"], solve-group = "default"}
+
+[tool.pixi.feature.dev.dependencies]
+pytest = "*"
+
 [tool.pixi.pypi-dependencies]
 grimpfunc = { path = ".", editable = true }
 
-[tool.pixi.tasks]
+[tool.pixi.feature.dev.tasks]
+test = "pytest -q"
 
 [tool.pixi.dependencies]
 dask = "*"

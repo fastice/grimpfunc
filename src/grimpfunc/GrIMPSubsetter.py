@@ -13,9 +13,10 @@ import dask
 import pandas as pd
 # from dask.diagnostics import ProgressBar
 # ProgressBar().register()
-import stackstac
-import rio_stac
-import pystac
+# optional packages needed to run deprecated functions:
+# import stackstac
+# import rio_stac
+# import pystac
 
 CHUNKSIZE = 512
 
@@ -72,7 +73,7 @@ class GrIMPSubsetter():
         read first geotiff to get STAC Item template (returns pystac.Item)
         '''
         template = bandsDict[self.bands[0]]['template']
-        first_url = URLs[0].replace(template, self.bands[0]) 
+        first_url = URLs[0].replace(template, self.bands[0])
         print(first_url)
         productType = bandsDict[self.bands[0]]['name']
         index1 = productTypeDict[productType]['index1']
