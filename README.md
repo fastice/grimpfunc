@@ -6,11 +6,37 @@ For examples of how this library is used refer to notebooks in https://github.co
 
 ## Installation
 
-In an existing python virtual environment: `pip install git+https://github.com/fastice/grimpfunc.git@master`
+grimpfunc has dependencies that are best installed as a `conda` package and not via `pip`. You can either:
 
+1. Install grimpfunc in a stand-alone reproducible virtual environment managed by [pixi](https://pixi.sh/latest/)
+```
+gh repo clone fastice/grimpfunc
+pixi run notebooks
+```
+
+2. Install as a conda-package into an exiting conda/mamba environment
+```
+conda activate myenv
+conda install --channel https://repo.prefix.dev/uw-cryo grimpfunc
+```
 
 ## Release Notes
 
+0.0.6  2025-08-20  Updated to fix issues with NSIDC migration of data sets to cloud
+
+## Building a new package version
+
+Be sure to bump package versions in pyproject.toml and add additional dependencies if necessary
+
+This will build a new package
+```
+pixi build
+```
+
+Upload to a server to install via pixi or conda-forge
+```
+pixi upload https://prefix.dev/api/v1/upload/uw-cryo grimpfunc-0.1.0-pyh4616a5c_0.conda
+```
 **0.0.7  2025-09-03**  Minor fixes.
 
 **0.0.6  2025-08-20**  Updated to fix issues with NSIDC migration of data sets to cloud.
