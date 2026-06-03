@@ -7,10 +7,9 @@ Created on Fri Mar 19 14:09:26 2021
 download script.
 """
 import os
-import base64
 from urllib.request import build_opener, install_opener, Request, urlopen
 from urllib.request import HTTPHandler, HTTPSHandler, HTTPCookieProcessor
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 from http.cookiejar import MozillaCookieJar
 import param
 import panel as pn
@@ -70,15 +69,16 @@ class NASALogin(param.Parameterized):
         markdown object with login status.
 
         '''
-        # We don't have a valid cookie, prompt user for creds
-        # Keep trying 'till user gets the right U:P
+        # Validate credentials and prepare cookie file; retry a few times
         count = 0
-        while self.check_cookie() is False and count < 10:
-            self.get_new_cookie()
+        success = False
+        while not success and count < 3:
+            success = self.get_new_cookie()
             count += 1
-            time.sleep(0.1)
-        # Update if not logged in through netrc
-        if self.check_cookie_is_logged_in(self.cookie_jar) and updateNetRC:
+            if not success:
+                time.sleep(0.1)
+        # Write .netrc if credentials validated and cookie file was created
+        if success and updateNetRC:
             self.updateNetrc()  # Create/update .netrc file
         # Update messages if gui
         if gui:
@@ -143,48 +143,68 @@ class NASALogin(param.Parameterized):
         return False
 
     def get_new_cookie(self):
-        ''' Create the new coookie.
-         Returns
+        '''Validate EarthData credentials and prepare the cookie file for GDAL.
+
+        EarthData now uses OAuth2 for data-endpoint authentication, which
+        means the old Basic-Auth-to-daacdata approach no longer works (the
+        server redirects to the OAuth page and Python drops the Authorization
+        header on the cross-host redirect).
+
+        This method instead validates credentials against the EarthData token
+        API, which accepts Basic Auth directly.  On success it writes an empty
+        MozillaCookieJar to ``cookie_jar_path``; GDAL reads credentials from
+        ``~/.netrc`` and populates the cookie file with a session cookie on
+        its first data access.
+
+        Returns
         -------
         bool
-            Whether new cookie successful.
+            True if credentials are valid and the cookie file was written.
         '''
-        self.errorMsg = 'XXXX'
-        # Start by prompting user to input their credentials
-        requestPath = self.requestPath
+        try:
+            import requests as _rq
+        except ImportError:
+            self.errorMsg = \
+                "Error: 'requests' library required — pip install requests"
+            return False
+
         new_username = self.username
         new_password = self.password
-        user_pass = base64.b64encode(
-            bytes(new_username+":"+new_password, "utf-8"))
-        user_pass = user_pass.decode("utf-8")
-        # Authenticate against URS, grab all the cookies
-        self.cookie_jar = MozillaCookieJar()
-        opener = build_opener(HTTPCookieProcessor(self.cookie_jar),
-                              HTTPHandler(), HTTPSHandler(**self.context))
-        request = Request(requestPath,
-                          headers={"Authorization": f"Basic {user_pass}"})
-        # Watch out cookie rejection!
-        try:
-            _ = opener.open(request)
-        except HTTPError as e:
-            self.errorMsg = "\nError: problem obtaining a download cookie:" \
-                f"{e.code}"
-            if e.code == 401:
-                return False
-        except URLError:
-            self.errorMsg = "Error: Problem communicating with URS," \
-                "unable to obtain cookie. Try cookie generation later."
+
+        if not new_username or not new_password:
+            self.errorMsg = "Error: Username and password required."
             return False
-        # Did we get a cookie?
-        if self.check_cookie_is_logged_in(self.cookie_jar):
-            # COOKIE SUCCESS!
+
+        # EarthData token API accepts Basic Auth — use it to validate creds
+        token_url = 'https://urs.earthdata.nasa.gov/api/users/tokens'
+        try:
+            r = _rq.get(token_url, auth=(new_username, new_password),
+                        timeout=30)
+        except _rq.exceptions.RequestException as e:
+            self.errorMsg = f"Error: Cannot reach EarthData: {e}"
+            return False
+
+        if r.status_code == 401:
+            self.errorMsg = \
+                "Error: Invalid EarthData username or password. " \
+                "Check your account at https://urs.earthdata.nasa.gov"
+            return False
+        if r.status_code not in (200, 201):
+            self.errorMsg = \
+                f"Error: EarthData returned unexpected status {r.status_code}"
+            return False
+
+        # Credentials valid — write an empty cookie jar for GDAL to populate
+        self.cookie_jar = MozillaCookieJar()
+        try:
             self.cookie_jar.save(self.cookie_jar_path)
-            return True
-        # if we aren't successful generating the cookie, nothing will work.
-        # Stop here!
-        self.errorMsg = "Error: Could not generate new cookie! " \
-            "Please try Username and Password again."
-        return False
+            os.chmod(self.cookie_jar_path, 0o600)
+        except Exception as e:
+            self.errorMsg = f"Error saving cookie file: {e}"
+            return False
+
+        self.errorMsg = ''
+        return True
 
     def check_cookie_is_logged_in(self, cj):
         '''
@@ -205,23 +225,30 @@ class NASALogin(param.Parameterized):
             if cookie.name == 'urs_user_already_logged':
                 # Only get this cookie if we logged in successfully!
                 return True
+        return False
 
     def get_cookie(self):
         '''
-        Get a cookies
+        Load the cookie jar from the cookie file on disk.
+
+        Validation against EarthData is intentionally skipped here — the
+        cookie file may be empty (GDAL has not yet made its first authenticated
+        request) and a network round-trip is not needed just to check file
+        presence.  Call ``check_cookie()`` explicitly if you need to validate.
+
         Returns
         -------
         bool
-            Success.
+            True if the cookie file exists and was loaded.
         '''
         if os.path.isfile(self.cookie_jar_path):
             self.cookie_jar = MozillaCookieJar()
-            self.cookie_jar.load(self.cookie_jar_path)
-        # make sure cookie is still valid
-        if self.check_cookie():
+            try:
+                self.cookie_jar.load(self.cookie_jar_path)
+            except Exception:
+                pass  # Empty or malformed file is fine — GDAL will populate it
             return True
-        else:
-            return False
+        return False
 
     def loginInstructions(self):
         '''
@@ -248,13 +275,14 @@ class NASALogin(param.Parameterized):
         return text
 
     def updateStatusMessage(self):
-        if self.check_cookie_is_logged_in(self.cookie_jar):
-            if os.path.exists(self.netrcFile):
-                self.msg = '### Status: Logged in\n####Continue'
-                self.style = {'color': 'blue'}
-            else:
-                self.msg = '### Status: Enter password to create .netrc'
-                self.style = {'color': 'orange'}
+        has_cookie = os.path.exists(self.cookie_jar_path)
+        has_netrc = os.path.exists(self.netrcFile)
+        if has_cookie and has_netrc:
+            self.msg = '### Status: Logged in\n####Continue'
+            self.style = {'color': 'blue'}
+        elif has_netrc:
+            self.msg = '### Status: Credentials saved — call view() to finish'
+            self.style = {'color': 'orange'}
         else:
             self.msg = '### Status: Not logged in\nEnter credentials'
             self.style = {'color': 'red'}
@@ -303,7 +331,7 @@ class NASALogin(param.Parameterized):
         if len(self.username) == 0 or len(self.password) == 0:
             return  # Don't attempt for empty user/password
         # Check
-        if self.checkNetrc(password=self.password):
+        if self.checkNetrc(password=self.password, username=self.username):
             return # Password in files so return
         #
         rcLine = f'machine {site} login {self.username} ' \
@@ -326,16 +354,20 @@ class NASALogin(param.Parameterized):
     def view(self):
         ''' Execute login procedure. First check if logged in. If so, return.
         Else start panel with login window '''
-        # First call try to get cookie
+        # First call: load cookie jar from disk if present
         if self.first:
             self.get_cookie()
             self.first = False
-         # Check netrc for password
+        # If .netrc has EarthData credentials, set self.username/password
+        # and create the cookie file if it is missing (GDAL needs the path
+        # to exist before it can write its own session cookie on first access)
         if self.checkNetrc(setCredential=True):
-            self.getCredentials(gui=False, updateNetRC=False)
-        # If logged in already, print message and return
-        if self.check_cookie_is_logged_in(self.cookie_jar) and \
-                os.path.exists(self.netrcFile):
+            if not os.path.exists(self.cookie_jar_path):
+                self.cookie_jar = MozillaCookieJar()
+                self.cookie_jar.save(self.cookie_jar_path)
+                os.chmod(self.cookie_jar_path, 0o600)
+        # If both .netrc entry and cookie file exist, already set up — done
+        if os.path.exists(self.cookie_jar_path) and self.checkNetrc():
             print('Already logged in. Proceed.')
             return
         # Not logged in so start login panel

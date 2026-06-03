@@ -347,10 +347,10 @@ class Flowlines():
         '''
         if flowlineIDs is None:
             flowlineIDs = self.flowlineIDs()
-        colors = mcolors.TABLEAU_COLORS.values()
-        # Cycle colors if more are needed
+        colors = list(mcolors.TABLEAU_COLORS.values())
+        # Cycle colors if more than 10 flowline IDs are needed
         while len(colors) < len(flowlineIDs):
-            colors += mcolors.TABLEAU_COLORS.values()
+            colors += list(mcolors.TABLEAU_COLORS.values())
         return {ID: c for ID, c in zip(flowlineIDs, colors)}
 
     def checkUnits(self, units):
