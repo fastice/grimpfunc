@@ -4,6 +4,14 @@ Is a small python package with utility classes and functions to work with [GrIMP
 
 For examples of how this library is used refer to notebooks in https://github.com/fastice/GrIMPNotebooks
 
+## Documentation
+
+- [Overview](Documents/Overview.md) — package overview and class summary
+- [boxPicker](Documents/boxPicker.md) — interactive bounding-box selection widget
+- [cmrUrls](Documents/cmrUrls.md) — CMR URL construction utilities
+- [Flowlines](Documents/Flowlines.md) — glacier flowline tools
+- [NASALogin](Documents/NASALogin.md) — NASA Earthdata authentication
+
 ## Installation
 
 In an existing python virtual environment: `pip install git+https://github.com/fastice/grimpfunc.git@master`
