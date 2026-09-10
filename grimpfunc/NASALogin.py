@@ -290,12 +290,12 @@ class NASALogin(param.Parameterized):
     def loginStatus(self):
         '''Check login status and print an appropriate message '''
         # self.updateStatusMessage()
-        return pn.pane.Markdown(self.msg, style=self.style)
+        return pn.pane.Markdown(self.msg, styles=self.style)
 
     def error(self):
         '''Check login status and print an appropriate message '''
         # self.updateStatusMessage()
-        return pn.pane.Markdown(self.errorMsg, style={'color': 'red'},
+        return pn.pane.Markdown(self.errorMsg, styles={'color': 'red'},
                                 width=250)
 
     def checkNetrc(self, password=None, username=None, setCredential=False):
