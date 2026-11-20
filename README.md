@@ -11,6 +11,7 @@ For examples of how this library is used refer to notebooks in https://github.co
 - [cmrUrls](Documents/cmrUrls.md) — CMR URL construction utilities
 - [Flowlines](Documents/Flowlines.md) — glacier flowline tools
 - [NASALogin](Documents/NASALogin.md) — NASA Earthdata authentication
+- [grimpdownload](Documents/grimpDownload.md) — command-line batch download and crop of GrIMP products (NSIDC first, Kopah otherwise)
 
 ## Installation
 

@@ -1,11 +1,11 @@
 # grimpdownload: batch download and crop of GrIMP products (design draft)
 
 Status: **prototype, 2026-11-19.** `grimpfunc/grimpDownload.py` runs (Kopah tested; NSIDC source
-resolution and a 9-file NSIDC crop run tested); not yet wired to the viewer, not yet a console script.
+resolution and a 9-file NSIDC crop run tested); not yet wired to the viewer. Installed as the `grimpdownload` command (`[tool.poetry.scripts]`).
 
 ```
-python -m grimpfunc.grimpDownload selection.grimp.yaml --outDir jakobshavn     # run
-python -m grimpfunc.grimpDownload selection.grimp.yaml --dryRun                # show the plan
+grimpdownload selection.grimp.yaml --outDir jakobshavn     # run
+grimpdownload selection.grimp.yaml --dryRun                # show the plan
 ```
 
 | Option | Default | Meaning |
@@ -140,7 +140,6 @@ its source and any refusals.
 
 ## Open questions
 
-- Package home: `grimpfunc` (has NSIDC login and search, public) is assumed here; add
-  `grimpdownload = "grimpfunc.grimpDownload:main"` to `[tool.poetry.scripts]` and reinstall.
+- Package home: `grimpfunc` (has NSIDC login and search, public) is assumed here.
 - NetCDF stack output (nisardev series) in addition to per-file GeoTIFFs?
 - Pacing defaults need a measured run against NSIDC.
