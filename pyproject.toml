@@ -34,9 +34,6 @@ keywords = ["SAR", "NSIDC", "Holoviz"]
 #[tool.poetry.extras]
 #qgis = ["qgis"]
 
-[tool.poetry.scripts]
-grimpdownload = "grimpfunc.grimpDownload:main"
-
 [tool.poetry.dev-dependencies]
 ipython = "*"
 
